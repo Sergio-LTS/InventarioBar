@@ -26,9 +26,9 @@ async def health():
     return {"status": "ok"}
 
 
-import asyncio
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+#import asyncio
+#@app.on_event("startup")
+#async def startup():
+#    async with engine.begin() as conn:
+#        await conn.run_sync(Base.metadata.create_all)
 
