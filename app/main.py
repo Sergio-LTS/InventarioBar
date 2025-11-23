@@ -25,8 +25,8 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-@app.on_event("startup")
-async def create_tables_once():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+#@app.on_event("startup")
+#async def create_tables_once():
+#    async with engine.begin() as conn:
+#        await conn.run_sync(Base.metadata.create_all)
 
