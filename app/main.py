@@ -19,7 +19,7 @@ app.include_router(reportes.router)
 
 @app.get("/")
 async def root():
-    return {"Cuaja alta gama te amo chacalita"}
+    return {"Cuaja alta gama"}
 
 @app.get("/health")
 async def health():
