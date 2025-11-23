@@ -25,11 +25,10 @@ async def root():
 async def health():
     return {"status": "ok"}
 
-# ——— crear tablas al arrancar (temporal) ———
+
 import asyncio
 @app.on_event("startup")
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-# ————————————————————————————————
 
