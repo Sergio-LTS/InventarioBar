@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 
-app = FastAPI(title="Inventario de Bar")
+app = FastAPI(title="Inventario de Bar logica de calculadora de Da vinci")
 
 
 app.include_router(usuarios.router)
@@ -19,7 +19,7 @@ app.include_router(reportes.router)
 
 @app.get("/")
 async def root():
-    return {"Cuaja alta gama"}
+    return {"Calculadora de da vinci"}
 
 @app.get("/health")
 async def health():

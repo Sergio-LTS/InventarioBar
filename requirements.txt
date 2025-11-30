@@ -46,3 +46,6 @@ uvicorn==0.30.6
 uvloop==0.21.0
 watchfiles==1.1.0
 websockets==15.0.1
+supabase>=2.7.4,<3
+python-multipart>=0.0.9
+Jinja2>=3.1.4
