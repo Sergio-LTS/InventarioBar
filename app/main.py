@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from .routes import web as web_routes
 
 
-app = FastAPI(title="Inventario de Bar logica de calculadora de Da vinci")
+app = FastAPI(title="Inventario de Bar")
 
 
 app.include_router(usuarios.router)
@@ -21,7 +21,7 @@ app.include_router(web_routes.router)
 
 @app.get("/")
 async def root():
-    return {"Calculadora de da vinci"}
+    return {"Inventario Bar"}
 
 @app.get("/health")
 async def health():
