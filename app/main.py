@@ -1,15 +1,15 @@
 # app/main.py
 from fastapi import FastAPI, Request
-from .models import Base
-from .database import engine
+#from .models import Base
+#from .database import engine
 from .routes import usuarios, productos, ventas, movimientos, reportes
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+#from fastapi.templating import Jinja2Templates
+#from fastapi.responses import HTMLResponse
+#from fastapi.staticfiles import StaticFiles
 from .routes import web as web_routes
 
 
-app = FastAPI(title="Inventario de Bar")
+app = FastAPI(title="Inventario de Barrr")
 
 
 app.include_router(usuarios.router)
