@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Inicio — InventarioBar{% endblock %}
+{% block content %}
+<h1>InventarioBar</h1>
+<p>Versión HTML con Jinja2. Usa la barra superior para navegar.</p>
+
+<div class="grid">
+  <a class="card" href="/web/productos">
+    <h3>Productos</h3>
+    <p>Listado y gestión de productos (con imagen).</p>
+  </a>
+  <a class="card" href="/web/ventas">
+    <h3>Ventas</h3>
+    <p>Registro de ventas y resumen rápido.</p>
+  </a>
+  <a class="card" href="/web/reportes">
+    <h3>Reportes</h3>
+    <p>Más vendidos, totales y reconciliación de stock.</p>
+  </a>
+  <a class="card" href="/web/usuarios">
+    <h3>Usuarios</h3>
+    <p>Listado de usuarios (con avatar).</p>
+  </a>
+</div>
+{% endblock %}
