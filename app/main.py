@@ -9,7 +9,7 @@ from .routes import usuarios, productos, ventas, movimientos, reportes
 from .routes import web as web_routes
 
 
-app = FastAPI(title="Inventario de Barrr")
+app = FastAPI(title="Inventario de Bar")
 
 
 app.include_router(usuarios.router)
