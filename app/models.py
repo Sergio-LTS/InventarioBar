@@ -1,6 +1,6 @@
 # app/models.py
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, func
 
 class Base(DeclarativeBase):
     pass
@@ -21,7 +21,9 @@ class Producto(Base):
     marca: Mapped[str] = mapped_column(String(100), nullable=True)
     cantidad: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     precio_venta: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    imagen_url = Column(String, nullable=True)
     fecha_agregado: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class Venta(Base):
     __tablename__ = "ventas"
