@@ -1,3 +1,4 @@
+# app/schemas.py
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from datetime import datetime
@@ -7,7 +8,6 @@ class UsuarioBase(BaseModel):
     nombre_usuario: str
     correo: EmailStr
     rol: str = Field("consulta", pattern="^(administrador|consulta)$")
-    foto_url: Optional[str] = None
 
 class UsuarioCreate(UsuarioBase):
     pass
@@ -16,7 +16,6 @@ class UsuarioUpdate(BaseModel):
     nombre_usuario: Optional[str] = None
     correo: Optional[EmailStr] = None
     rol: Optional[str] = Field(None, pattern="^(administrador|consulta)$")
-    foto_url: Optional[str] = None
 
 class UsuarioOut(UsuarioBase):
     id_usuario: int
@@ -31,7 +30,6 @@ class ProductoBase(BaseModel):
     marca: Optional[str] = None
     cantidad: int = 0
     precio_venta: float
-    imagen_url: Optional[str] = None
 
 class ProductoCreate(ProductoBase):
     pass
@@ -42,7 +40,6 @@ class ProductoUpdate(BaseModel):
     marca: Optional[str] = None
     cantidad: Optional[int] = None
     precio_venta: Optional[float] = None
-    imagen_url: Optional[str] = None
 
 class ProductoOut(ProductoBase):
     id_producto: int

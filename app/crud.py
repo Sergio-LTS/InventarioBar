@@ -10,7 +10,6 @@ async def create_usuario(db: AsyncSession, data: schemas.UsuarioCreate):
         nombre_usuario=data.nombre_usuario,
         correo=data.correo,
         rol=data.rol,
-        foto_url=getattr(data, "foto_url", None),
     )
     db.add(obj)
     try:
