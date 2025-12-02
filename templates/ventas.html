@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Ventas{% endblock %}
+{% block content %}
+<h2>Ventas</h2>
+<div class="grid">
+  {% for v in ventas %}
+  <div class="card">
+    <div class="row">
+      <img class="avatar" src="{{ v.usuario_foto or url_for('static', path='/user.png') }}" alt="usuario">
+      <div>
+        <div class="muted">#{{ v.id_venta }} · {{ v.fecha_venta.strftime('%Y-%m-%d %H:%M') if v.fecha_venta else '' }}</div>
+        <div><strong>{{ v.usuario_nombre }}</strong></div>
+      </div>
+    </div>
+
+    <div class="prod">
+      <img class="thumb" src="{{ v.producto_imagen or url_for('static', path='/noimage.png') }}" alt="producto">
+      <div class="prod-info">
+        <div class="prod-name">{{ v.producto_nombre }}</div>
+        <div class="muted">Cant: {{ v.cantidad_vendida }}</div>
+      </div>
+    </div>
+
+    <div class="total">$ {{ '%.0f'|format(v.total_venta) }}</div>
+  </div>
+  {% else %}
+    <p class="muted">No hay ventas registradas.</p>
+  {% endfor %}
+</div>
+{% endblock %}
