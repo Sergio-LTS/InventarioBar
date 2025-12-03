@@ -1,0 +1,43 @@
+{% extends "web/base.html" %}
+{% block title %}Productos{% endblock %}
+{% block content %}
+<h1>Productos</h1>
+
+<form class="card" action="/web/productos/nuevo" method="post" enctype="multipart/form-data">
+  <h2>Crear producto</h2>
+  <div class="grid">
+    <label>Nombre <input name="nombre" required></label>
+    <label>Categoría <input name="categoria" required></label>
+    <label>Marca <input name="marca" required></label>
+    <label>Cantidad <input type="number" name="cantidad" value="1" min="0" required></label>
+    <label>Precio venta <input type="number" step="0.01" name="precio_venta" value="0" required></label>
+    <label>Imagen (opcional) <input type="file" name="imagen" accept="image/*"></label>
+  </div>
+  <button type="submit">Guardar</button>
+</form>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Cant.</th><th>Precio</th><th>Imagen</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in productos %}
+    <tr>
+      <td>{{ p.id_producto }}</td>
+      <td>{{ p.nombre }}</td>
+      <td>{{ p.categoria }}</td>
+      <td>{{ p.marca }}</td>
+      <td>{{ p.cantidad }}</td>
+      <td>{{ "%.2f"|format(p.precio_venta or 0) }}</td>
+      <td>
+        {% if p.imagen_url %}
+          <img src="{{ p.imagen_url }}" alt="img" style="height:48px"/>
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

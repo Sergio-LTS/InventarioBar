@@ -1,30 +1,24 @@
 # app/routes/web.py
-from fastapi import APIRouter, Depends, Request, Form, UploadFile, File
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
+from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from sqlalchemy import select
 from ..database import get_db
-from .. import crud, schemas
-from ..services.supabase_storage import upload_image_to_supabase  # usamos SOLO este
+from .. import models
+from ..supabase_client import upload_image_to_supabase
 
-router = APIRouter(prefix="/web", tags=["Web"])
+router = APIRouter(tags=["Web"])
 templates = Jinja2Templates(directory="app/templates")
 
-@router.get("/productos", response_class=HTMLResponse)
+@router.get("/web/productos")
 async def pagina_productos(request: Request, db: AsyncSession = Depends(get_db)):
-    productos = await crud.list_productos(db)
-    return templates.TemplateResponse(
-        "productos.html",
-        {"request": request, "productos": productos},
-    )
+    res = await db.execute(select(models.Producto).order_by(models.Producto.id_producto))
+    productos = list(res.scalars().all())
+    return templates.TemplateResponse("web/productos.html", {"request": request, "productos": productos})
 
-@router.get("/productos/nuevo", response_class=HTMLResponse)
-async def form_producto(request: Request):
-    return templates.TemplateResponse("productos_form.html", {"request": request})
-
-@router.post("/productos/nuevo")
-async def crear_producto_web(
+@router.post("/web/productos/nuevo")
+async def web_crear_producto(
     request: Request,
     nombre: str = Form(...),
     categoria: str = Form(...),
@@ -34,21 +28,43 @@ async def crear_producto_web(
     imagen: UploadFile = File(None),
     db: AsyncSession = Depends(get_db),
 ):
-    imagen_url = None
-    if imagen and imagen.filename:
-        try:
-            imagen_url = await upload_image_to_supabase(imagen, folder="productos")
-        except Exception as e:
-            # Si falla la subida, seguimos sin imagen para no romper el flujo
-            print(f"[WARN] No se pudo subir imagen: {e}")
+    url = None
+    if imagen:
+        url = await upload_image_to_supabase(imagen, folder="productos")
 
-    data = schemas.ProductoCreate(
-        nombre=nombre,
-        categoria=categoria,
-        marca=marca,
-        cantidad=cantidad,
-        precio_venta=precio_venta,
-        imagen_url=imagen_url,
+    obj = models.Producto(
+        nombre=nombre, categoria=categoria, marca=marca,
+        cantidad=cantidad, precio_venta=precio_venta,
+        imagen_url=url
     )
-    await crud.create_producto(db, data)
+    db.add(obj)
+    await db.commit()
     return RedirectResponse(url="/web/productos", status_code=303)
+
+@router.get("/web/usuarios")
+async def pagina_usuarios(request: Request, db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(models.Usuario).order_by(models.Usuario.id_usuario))
+    usuarios = list(res.scalars().all())
+    return templates.TemplateResponse("web/usuarios.html", {"request": request, "usuarios": usuarios})
+
+@router.post("/web/usuarios/nuevo")
+async def web_crear_usuario(
+    request: Request,
+    nombre: str = Form(...),
+    correo: str = Form(...),
+    contrasena: str = Form(...),
+    rol: str = Form(...),
+    foto: UploadFile = File(None),
+    db: AsyncSession = Depends(get_db),
+):
+    foto_url = None
+    if foto:
+        foto_url = await upload_image_to_supabase(foto, folder="usuarios")
+
+    obj = models.Usuario(
+        nombre=nombre, correo=correo, contrasena=contrasena,
+        rol=rol, foto_url=foto_url
+    )
+    db.add(obj)
+    await db.commit()
+    return RedirectResponse(url="/web/usuarios", status_code=303)

@@ -7,6 +7,7 @@ class UsuarioBase(BaseModel):
     nombre_usuario: str
     correo: EmailStr
     rol: str = Field("consulta", pattern="^(administrador|consulta)$")
+    foto_url: str | None = None
 
 class UsuarioCreate(UsuarioBase):
     pass
@@ -15,9 +16,11 @@ class UsuarioUpdate(BaseModel):
     nombre_usuario: Optional[str] = None
     correo: Optional[EmailStr] = None
     rol: Optional[str] = Field(None, pattern="^(administrador|consulta)$")
+    foto_url: str | None = None
 
 class UsuarioOut(UsuarioBase):
     id_usuario: int
+    foto_url: str | None = None
     creado_en: datetime
     class Config:
         from_attributes = True

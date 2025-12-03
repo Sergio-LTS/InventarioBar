@@ -1,0 +1,46 @@
+{% extends "web/base.html" %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<h1>Usuarios</h1>
+
+<form class="card" action="/web/usuarios/nuevo" method="post" enctype="multipart/form-data">
+  <h2>Crear usuario</h2>
+  <div class="grid">
+    <label>Nombre <input name="nombre" required></label>
+    <label>Correo <input type="email" name="correo" required></label>
+    <label>Contraseña <input type="text" name="contrasena" required></label>
+    <label>Rol
+      <select name="rol">
+        <option value="administrador">administrador</option>
+        <option value="vendedor">vendedor</option>
+      </select>
+    </label>
+    <label>Foto (opcional) <input type="file" name="foto" accept="image/*"></label>
+  </div>
+  <button type="submit">Guardar</button>
+</form>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Foto</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in usuarios %}
+    <tr>
+      <td>{{ u.id_usuario }}</td>
+      <td>{{ u.nombre }}</td>
+      <td>{{ u.correo }}</td>
+      <td>{{ u.rol }}</td>
+      <td>
+        {% if u.foto_url %}
+          <img src="{{ u.foto_url }}" alt="foto" style="height:48px"/>
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+l>
