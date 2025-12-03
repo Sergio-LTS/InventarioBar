@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from .routes import web as web_routes
 
 
-app = FastAPI(title="Inventario de Bar.")
+app = FastAPI(title="Inventario de Bar")
 
 
 app.include_router(usuarios.router)
