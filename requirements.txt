@@ -48,3 +48,10 @@ websockets==15.0.1
 supabase>=2.7.4,<3
 python-multipart>=0.0.9
 Jinja2>=3.1.4
+
+fastapi
+uvicorn[standard]
+SQLAlchemy>=2
+asyncpg
+python-dotenv
+jinja2
