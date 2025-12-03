@@ -1,70 +1,221 @@
 # app/routes/web.py
-from fastapi import APIRouter, Depends, Request, UploadFile, File, Form
-from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from ..database import get_db
-from .. import models
-from ..supabase_client import upload_image_to_supabase
+import logging
+from typing import Optional
+from datetime import datetime
 
-router = APIRouter(tags=["Web"])
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from starlette import status
+from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.templating import Jinja2Templates
+
+from ..database import get_db
+from .. import crud, schemas
+from ..services.supabase_storage import upload_image_get_public_url
+
+logger = logging.getLogger("inventariobar")
+
+router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="app/templates")
 
-@router.get("/web/productos")
-async def pagina_productos(request: Request, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(models.Producto).order_by(models.Producto.id_producto))
-    productos = list(res.scalars().all())
-    return templates.TemplateResponse("web/productos.html", {"request": request, "productos": productos})
 
-@router.post("/web/productos/nuevo")
-async def web_crear_producto(
+# ---------- HOME ----------
+@router.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("web/home.html", {"request": request})
+
+
+# ---------- PRODUCTOS ----------
+@router.get("/web/productos", response_class=HTMLResponse)
+async def pagina_productos(
     request: Request,
+    db: AsyncSession = Depends(get_db),
+    q: Optional[str] = None,
+    page: int = 1,
+):
+    page = max(page, 1)
+    limit = 50
+    offset = (page - 1) * limit
+    productos = await crud.search_productos(db, q=q, limit=limit, offset=offset)
+    return templates.TemplateResponse(
+        "web/productos.html",
+        {"request": request, "productos": productos, "q": q or "", "page": page},
+    )
+
+
+@router.post("/web/productos")
+async def crear_producto_html(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
     nombre: str = Form(...),
     categoria: str = Form(...),
     marca: str = Form(...),
     cantidad: int = Form(...),
     precio_venta: float = Form(...),
-    imagen: UploadFile = File(None),
-    db: AsyncSession = Depends(get_db),
+    imagen: UploadFile | None = File(default=None),
 ):
-    url = None
-    if imagen:
-        url = await upload_image_to_supabase(imagen, folder="productos")
+    imagen_url: str | None = None
+    if imagen and imagen.filename:
+        imagen_url = await upload_image_get_public_url(imagen, folder="productos")
 
-    obj = models.Producto(
-        nombre=nombre, categoria=categoria, marca=marca,
-        cantidad=cantidad, precio_venta=precio_venta,
-        imagen_url=url
+    data = schemas.ProductoCreate(
+        nombre=nombre,
+        categoria=categoria,
+        marca=marca,
+        cantidad=cantidad,
+        precio_venta=precio_venta,
+        imagen_url=imagen_url,
     )
-    db.add(obj)
-    await db.commit()
-    return RedirectResponse(url="/web/productos", status_code=303)
+    await crud.create_producto(db, data)
+    logger.info("Producto creado: %s", nombre)
+    return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
 
-@router.get("/web/usuarios")
+
+@router.post("/web/productos/{id_producto}/delete")
+async def eliminar_producto_html(id_producto: int, db: AsyncSession = Depends(get_db)):
+    await crud.delete_producto(db, id_producto)
+    return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
+
+
+# ---------- USUARIOS ----------
+@router.get("/web/usuarios", response_class=HTMLResponse)
 async def pagina_usuarios(request: Request, db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(models.Usuario).order_by(models.Usuario.id_usuario))
-    usuarios = list(res.scalars().all())
-    return templates.TemplateResponse("web/usuarios.html", {"request": request, "usuarios": usuarios})
-
-@router.post("/web/usuarios/nuevo")
-async def web_crear_usuario(
-    request: Request,
-    nombre: str = Form(...),
-    correo: str = Form(...),
-    contrasena: str = Form(...),
-    rol: str = Form(...),
-    foto: UploadFile = File(None),
-    db: AsyncSession = Depends(get_db),
-):
-    foto_url = None
-    if foto:
-        foto_url = await upload_image_to_supabase(foto, folder="usuarios")
-
-    obj = models.Usuario(
-        nombre=nombre, correo=correo, contrasena=contrasena,
-        rol=rol, foto_url=foto_url
+    usuarios = await crud.list_usuarios(db)
+    return templates.TemplateResponse(
+        "web/usuarios.html",
+        {"request": request, "usuarios": usuarios},
     )
-    db.add(obj)
-    await db.commit()
-    return RedirectResponse(url="/web/usuarios", status_code=303)
+
+
+@router.post("/web/usuarios")
+async def crear_usuario_html(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    nombre_usuario: str = Form(...),
+    correo: str = Form(...),
+    rol: str = Form(...),
+    foto: UploadFile | None = File(default=None),
+):
+    foto_url: str | None = None
+    if foto and foto.filename:
+        foto_url = await upload_image_get_public_url(foto, folder="usuarios")
+
+    data = schemas.UsuarioCreate(
+        nombre_usuario=nombre_usuario,
+        correo=correo,
+        rol=rol,
+        foto_url=foto_url,
+    )
+    await crud.create_usuario(db, data)
+    logger.info("Usuario creado: %s", nombre_usuario)
+    return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
+
+
+@router.post("/web/usuarios/{id_usuario}/delete")
+async def eliminar_usuario_html(id_usuario: int, db: AsyncSession = Depends(get_db)):
+    await crud.delete_usuario(db, id_usuario)
+    return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
+
+
+# ---------- VENTAS ----------
+def _parse_date(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        # input type="date" -> 'YYYY-MM-DD'
+        return datetime.strptime(s, "%Y-%m-%d")
+    except Exception:
+        return None
+
+
+@router.get("/web/ventas", response_class=HTMLResponse)
+async def pagina_ventas(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    producto_id: Optional[int] = None,
+    usuario_id: Optional[int] = None,
+    msg: Optional[str] = None,
+):
+    dt_desde = _parse_date(desde)
+    dt_hasta = _parse_date(hasta)
+
+    # Datos para selects del formulario
+    productos = await crud.list_productos(db)
+    usuarios = await crud.list_usuarios(db)
+
+    # Ventas filtradas
+    ventas = await crud.list_ventas(
+        db,
+        desde=dt_desde,
+        hasta=dt_hasta,
+        producto_id=producto_id,
+        usuario_id=usuario_id,
+    )
+
+    # Diccionarios para mostrar nombres
+    map_prod = {p.id_producto: p for p in productos}
+    map_user = {u.id_usuario: u for u in usuarios}
+
+    # Resumen del periodo
+    resumen = await crud.resumen_ventas_periodo(db, dt_desde, dt_hasta)
+
+    return templates.TemplateResponse(
+        "web/ventas.html",
+        {
+            "request": request,
+            "productos": productos,
+            "usuarios": usuarios,
+            "ventas": ventas,
+            "map_prod": map_prod,
+            "map_user": map_user,
+            "desde": desde or "",
+            "hasta": hasta or "",
+            "producto_id": producto_id,
+            "usuario_id": usuario_id,
+            "msg": msg,
+            "resumen": resumen,
+        },
+    )
+
+
+@router.post("/web/ventas")
+async def crear_venta_html(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    id_usuario: int = Form(...),
+    id_producto: int = Form(...),
+    cantidad_vendida: int = Form(...),
+):
+    try:
+        await crud.create_venta(
+            db,
+            schemas.VentaCreate(
+                id_usuario=id_usuario,
+                id_producto=id_producto,
+                cantidad_vendida=cantidad_vendida,
+            ),
+        )
+        url = "/web/ventas?msg=Venta%20registrada"
+    except ValueError as e:
+        url = f"/web/ventas?msg={str(e).replace(' ', '%20')}"
+    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
+
+
+# ---------- DASHBOARD (Top vendidos) ----------
+@router.get("/web/dashboard", response_class=HTMLResponse)
+async def pagina_dashboard(request: Request, db: AsyncSession = Depends(get_db)):
+    top = await crud.list_productos_mas_vendidos(db, limit=10)
+    bottom = await crud.list_productos_menos_vendidos(db, limit=10)
+    resumen = await crud.resumen_ventas_periodo(db)
+    return templates.TemplateResponse(
+        "web/dashboard.html",
+        {"request": request, "top": top, "bottom": bottom, "resumen": resumen},
+    )
+
+
+@router.post("/web/dashboard/rebuild")
+async def rebuild_dashboard(db: AsyncSession = Depends(get_db)):
+    await crud.rebuild_resumenes_ventas(db)
+    return RedirectResponse(url="/web/dashboard", status_code=status.HTTP_302_FOUND)

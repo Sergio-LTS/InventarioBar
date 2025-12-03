@@ -1,15 +1,22 @@
-# app/crud.py (async)
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case, delete
-from sqlalchemy.exc import IntegrityError
-from . import models, schemas
+# app/crud.py
+from datetime import datetime
+from typing import Optional
 
-# ===== USUARIOS =====
+from sqlalchemy import select, func, case, or_, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+
+from . import models, schemas
+from .models import ProductoMasVendido as PMV, ProductoMenosVendido as PMeV
+
+
+# =============== USUARIOS ===============
 async def create_usuario(db: AsyncSession, data: schemas.UsuarioCreate):
     obj = models.Usuario(
         nombre_usuario=data.nombre_usuario,
         correo=data.correo,
         rol=data.rol,
+        foto_url=data.foto_url,
     )
     db.add(obj)
     try:
@@ -46,9 +53,25 @@ async def delete_usuario(db: AsyncSession, usuario_id: int):
     await db.commit()
     return obj
 
-# ===== PRODUCTOS =====
+
+# =============== PRODUCTOS ===============
 async def list_productos(db: AsyncSession):
     res = await db.execute(select(models.Producto).order_by(models.Producto.id_producto))
+    return res.scalars().all()
+
+async def search_productos(db: AsyncSession, q: Optional[str], limit: int = 50, offset: int = 0):
+    stmt = select(models.Producto).order_by(models.Producto.id_producto)
+    if q:
+        iq = f"%{q.strip().lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(models.Producto.nombre).ilike(iq),
+                func.lower(models.Producto.categoria).ilike(iq),
+                func.lower(models.Producto.marca).ilike(iq),
+            )
+        )
+    stmt = stmt.limit(limit).offset(offset)
+    res = await db.execute(stmt)
     return res.scalars().all()
 
 async def get_producto(db: AsyncSession, producto_id: int):
@@ -80,7 +103,8 @@ async def delete_producto(db: AsyncSession, producto_id: int):
     await db.commit()
     return obj
 
-# ===== VENTAS =====
+
+# =============== VENTAS ===============
 async def create_venta(db: AsyncSession, data: schemas.VentaCreate):
     producto = await db.get(models.Producto, data.id_producto)
     if not producto:
@@ -118,7 +142,13 @@ async def create_venta(db: AsyncSession, data: schemas.VentaCreate):
     await db.refresh(venta)
     return venta
 
-async def list_ventas(db: AsyncSession, desde=None, hasta=None, producto_id: int | None = None, usuario_id: int | None = None):
+async def list_ventas(
+    db: AsyncSession,
+    desde: datetime | None = None,
+    hasta: datetime | None = None,
+    producto_id: int | None = None,
+    usuario_id: int | None = None
+):
     stmt = select(models.Venta)
     if desde:
         stmt = stmt.where(models.Venta.fecha_venta >= desde)
@@ -134,7 +164,8 @@ async def list_ventas(db: AsyncSession, desde=None, hasta=None, producto_id: int
 async def get_venta(db: AsyncSession, venta_id: int):
     return await db.get(models.Venta, venta_id)
 
-# ===== MOVIMIENTOS =====
+
+# =============== MOVIMIENTOS ===============
 async def create_movimiento(db: AsyncSession, data: schemas.MovimientoCreate):
     producto = await db.get(models.Producto, data.id_producto)
     if not producto:
@@ -167,9 +198,8 @@ async def list_movimientos(db: AsyncSession, producto_id: int | None = None):
     res = await db.execute(stmt.order_by(models.InventarioMovimiento.id_movimiento.desc()))
     return res.scalars().all()
 
-# ===== RESÚMENES PERSISTIDOS =====
-from .models import ProductoMasVendido as PMV, ProductoMenosVendido as PMeV
 
+# =============== RESÚMENES PERSISTIDOS ===============
 async def rebuild_resumenes_ventas(db: AsyncSession):
     # Limpia tablas
     await db.execute(delete(PMV))
@@ -201,9 +231,13 @@ async def list_productos_menos_vendidos(db: AsyncSession, limit: int = 10):
     res = await db.execute(select(PMeV).order_by(PMeV.total_vendido.asc()).limit(limit))
     return res.scalars().all()
 
-# ===== REPORTES ADICIONALES =====
-from datetime import datetime
-async def resumen_ventas_periodo(db: AsyncSession, desde: datetime | None = None, hasta: datetime | None = None):
+
+# =============== REPORTES EXTRA ===============
+async def resumen_ventas_periodo(
+    db: AsyncSession,
+    desde: datetime | None = None,
+    hasta: datetime | None = None
+):
     q_stmt = select(models.Venta)
     if desde:
         q_stmt = q_stmt.where(models.Venta.fecha_venta >= desde)
@@ -242,40 +276,3 @@ async def resumen_ventas_periodo(db: AsyncSession, desde: datetime | None = None
         "ticket_promedio": float(ticket_prom),
         "por_producto": por_producto,
     }
-
-async def reconciliacion_stock(db: AsyncSession):
-    subq = (
-        select(
-            models.InventarioMovimiento.id_producto.label("id_producto"),
-            func.sum(
-                case(
-                    (models.InventarioMovimiento.tipo_movimiento == "entrada", models.InventarioMovimiento.cantidad),
-                    else_=-models.InventarioMovimiento.cantidad,
-                )
-            ).label("stock_por_movs")
-        )
-        .group_by(models.InventarioMovimiento.id_producto)
-        .subquery()
-    )
-    stmt = (
-        select(
-            models.Producto.id_producto,
-            models.Producto.nombre,
-            models.Producto.cantidad.label("stock_actual"),
-            func.coalesce(subq.c.stock_por_movs, 0).label("stock_por_movimientos"),
-        )
-        .outerjoin(subq, subq.c.id_producto == models.Producto.id_producto)
-        .order_by(models.Producto.id_producto)
-    )
-    rows = (await db.execute(stmt)).all()
-    return [
-        {
-            "id_producto": r.id_producto,
-            "nombre": r.nombre,
-            "stock_actual": int(r.stock_actual),
-            "stock_por_movimientos": int(r.stock_por_movimientos),
-            "diferencia": int(r.stock_actual - r.stock_por_movimientos),
-            "nota": "Registra una 'entrada' inicial para cuadrar si acabas de crear el producto con stock inicial.",
-        }
-        for r in rows
-    ]

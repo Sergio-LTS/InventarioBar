@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ventas</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Ventas</h1>
+    <p>Registrar una venta y ver el historial.</p>
+
+    {% if msg %}
+      <div class="alert">{{ msg }}</div>
+    {% endif %}
+    {% if error %}
+      <div class="alert error">{{ error }}</div>
+    {% endif %}
+
+    <h2>Nueva venta</h2>
+    <form action="/web/ventas" method="post" class="card">
+      <label>Producto</label>
+      <select name="id_producto" required>
+        <option value="">-- Selecciona --</option>
+        {% for p in productos %}
+          <option value="{{ p.id_producto }}">{{ p.nombre }} (stock: {{ p.cantidad }})</option>
+        {% endfor %}
+      </select>
+
+      <label>Usuario</label>
+      <select name="id_usuario" required>
+        <option value="">-- Selecciona --</option>
+        {% for u in usuarios %}
+          <option value="{{ u.id_usuario }}">{{ u.nombre_usuario }} ({{ u.rol }})</option>
+        {% endfor %}
+      </select>
+
+      <label>Cantidad vendida</label>
+      <input type="number" name="cantidad_vendida" min="1" required />
+
+      <button type="submit" class="btn">Guardar</button>
+    </form>
+
+    <h2>Listado</h2>
+    <div class="grid">
+      {% for v in ventas %}
+        <div class="card">
+          <div class="title">Venta #{{ v.id_venta }}</div>
+          <div>Producto: {{ v.producto.nombre if v.producto else v.id_producto }}</div>
+          <div>Usuario: {{ v.usuario.nombre_usuario if v.usuario else v.id_usuario }}</div>
+          <div>Cantidad: {{ v.cantidad_vendida }}</div>
+          <div>Total: $ {{ "%.0f"|format(v.total_venta or 0) }}</div>
+          <div class="muted">{{ v.fecha_venta }}</div>
+        </div>
+      {% else %}
+        <p class="muted">No hay ventas registradas.</p>
+      {% endfor %}
+    </div>
+
+    <p><a class="btn" href="/">Inicio</a></p>
+  </div>
+</body>
+</html>

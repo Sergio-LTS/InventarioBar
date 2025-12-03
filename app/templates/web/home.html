@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>InventarioBar</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+  <style>
+    /* respaldo por si /static/styles.css no está */
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;background:#0b0d12;color:#e8edf2;}
+    .wrap{max-width:980px;margin:40px auto;padding:0 16px;}
+    h1{font-size:42px;margin:0 0 8px;}
+    p{opacity:.9}
+    .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+    .btn{background:#141927;color:#e8edf2;text-decoration:none;
+         padding:10px 16px;border-radius:10px;font-weight:600;}
+    .btn:hover{background:#1a2140}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>InventarioBar</h1>
+    <p>Panel HTML básico para probar el CRUD con imágenes.</p>
+
+    <div class="btns">
+      <a class="btn" href="/web/productos">Productos</a>
+      <a class="btn" href="/web/usuarios">Usuarios</a>
+      <a class="btn" href="/web/ventas">Ventas</a>
+      <a class="btn" href="/web/dashboard">Dashboard</a>
+      <a class="btn" href="/docs">Swagger</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,13 +1,15 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+# app/schemas.py
+from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
+from typing import Literal, Optional
 
-# ===== Usuarios =====
+
+# ====== USUARIOS ======
 class UsuarioBase(BaseModel):
     nombre_usuario: str
     correo: EmailStr
-    rol: str = Field("consulta", pattern="^(administrador|consulta)$")
-    foto_url: str | None = None
+    rol: str
+    foto_url: Optional[str] = None
 
 class UsuarioCreate(UsuarioBase):
     pass
@@ -15,23 +17,22 @@ class UsuarioCreate(UsuarioBase):
 class UsuarioUpdate(BaseModel):
     nombre_usuario: Optional[str] = None
     correo: Optional[EmailStr] = None
-    rol: Optional[str] = Field(None, pattern="^(administrador|consulta)$")
-    foto_url: str | None = None
+    rol: Optional[str] = None
+    foto_url: Optional[str] = None
 
 class UsuarioOut(UsuarioBase):
     id_usuario: int
-    foto_url: str | None = None
-    creado_en: datetime
     class Config:
         from_attributes = True
 
-# ===== Productos =====
+
+# ====== PRODUCTOS ======
 class ProductoBase(BaseModel):
     nombre: str
-    categoria: Optional[str] = None
-    marca: Optional[str] = None
-    cantidad: int = 0
-    precio_venta: float
+    categoria: str
+    marca: str
+    cantidad: int = Field(ge=0)
+    precio_venta: float = Field(ge=0)
     imagen_url: Optional[str] = None
 
 class ProductoCreate(ProductoBase):
@@ -41,54 +42,45 @@ class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
     categoria: Optional[str] = None
     marca: Optional[str] = None
-    cantidad: Optional[int] = None
-    precio_venta: Optional[float] = None
+    cantidad: Optional[int] = Field(default=None, ge=0)
+    precio_venta: Optional[float] = Field(default=None, ge=0)
     imagen_url: Optional[str] = None
 
 class ProductoOut(ProductoBase):
     id_producto: int
-    fecha_agregado: datetime
     class Config:
         from_attributes = True
 
-# ===== Ventas =====
+
+# ====== VENTAS ======
 class VentaCreate(BaseModel):
     id_usuario: int
     id_producto: int
-    cantidad_vendida: int
+    cantidad_vendida: int = Field(ge=1)
 
 class VentaOut(BaseModel):
     id_venta: int
     id_usuario: int
     id_producto: int
     cantidad_vendida: int
-    fecha_venta: datetime
     total_venta: float
     class Config:
         from_attributes = True
 
-# ===== Movimientos =====
-class MovimientoCreate(BaseModel):
+
+# ====== MOVIMIENTOS ======
+class MovimientoBase(BaseModel):
     id_producto: int
-    tipo_movimiento: str  # 'entrada' | 'salida'
+    tipo_movimiento: Literal["entrada", "salida"]
     cantidad: int
     descripcion: Optional[str] = None
 
-class MovimientoOut(BaseModel):
+class MovimientoCreate(MovimientoBase):
+    pass
+
+class MovimientoOut(MovimientoBase):
     id_movimiento: int
-    id_producto: int
-    tipo_movimiento: str
-    cantidad: int
     fecha_movimiento: datetime
-    descripcion: Optional[str] = None
-    class Config:
-        from_attributes = True
 
-# ===== Reportes persistidos =====
-class ResumenVendidosOut(BaseModel):
-    id_producto: int
-    nombre: str
-    total_vendido: int
-    actualizado_en: datetime
     class Config:
         from_attributes = True
