@@ -17,7 +17,7 @@ logger = logging.getLogger("inventariobar")
 
 router = APIRouter(tags=["web"])
 templates = Jinja2Templates(directory="app/templates")
-
+templates.env.globals["now"] = lambda: datetime.now()
 
 # ---------- HOME ----------
 @router.get("/", response_class=HTMLResponse)
