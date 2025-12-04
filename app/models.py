@@ -57,19 +57,12 @@ class Venta(Base):
 class InventarioMovimiento(Base):
     __tablename__ = "inventario_movimientos"
 
-    id_movimiento = sa.Column(sa.Integer, primary_key=True, index=True)
-    id_producto = sa.Column(
-        sa.Integer,
-        sa.ForeignKey("productos.id_producto", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    tipo_movimiento = sa.Column(sa.String(20), nullable=False)  # 'entrada'/'salida'
-    cantidad = sa.Column(sa.Integer, nullable=False)
-    descripcion = sa.Column(sa.String(255))
-    fecha = sa.Column(sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
-
-    producto = relationship("Producto", passive_deletes=True)
+    id_movimiento = Column(Integer, primary_key=True, index=True)
+    id_producto = Column(Integer, ForeignKey("productos.id_producto", ondelete="CASCADE"), nullable=False)
+    tipo_movimiento = Column(String(20), nullable=False)  # 'entrada'|'salida'
+    cantidad = Column(Integer, nullable=False)
+    descripcion = Column(String(200))
+    fecha = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 class ProductoMasVendido(Base):
     __tablename__ = "productos_mas_vendidos"
