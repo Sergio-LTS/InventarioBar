@@ -1,133 +1,115 @@
 {% extends "web/base.html" %}
-{% block title %}Ventas · InventarioBar{% endblock %}
-
 {% block content %}
-{% if msg %}
-  <div class="alert alert-info">{{ msg }}</div>
-{% endif %}
 
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card p-3">
-      <h2 class="h6">Registrar venta</h2>
-      <form class="mt-2" action="/web/ventas" method="post">
-        <div class="mb-2">
-          <label class="form-label">Usuario</label>
-          <select class="form-select" name="id_usuario" required>
-            {% for u in usuarios %}
-              <option value="{{ u.id_usuario }}">{{ u.nombre_usuario }} ({{ u.rol }})</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Producto</label>
-          <select class="form-select" name="id_producto" required>
-            {% for p in productos %}
-              <option value="{{ p.id_producto }}">{{ p.nombre }} — stock: {{ p.cantidad }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Cantidad</label>
-          <input class="form-control" type="number" name="cantidad_vendida" min="1" required>
-        </div>
-        <button class="btn btn-success w-100"><i class="bi bi-cash-coin me-1"></i>Registrar</button>
-      </form>
-    </div>
+<h1>Ventas</h1>
+
+<section class="card">
+  <h2>Filtros</h2>
+  <form action="/web/ventas" method="get" class="form-grid">
+    <label>Desde
+      <input type="date" name="desde" value="{{ desde }}">
+    </label>
+    <label>Hasta
+      <input type="date" name="hasta" value="{{ hasta }}">
+    </label>
+
+    <label>Producto
+      <select name="producto_id">
+        <option value="">Todos</option>
+        {% for p in productos %}
+          <option value="{{ p.id_producto }}" {% if producto_id == p.id_producto %}selected{% endif %}>{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Usuario
+      <select name="usuario_id">
+        <option value="">Todos</option>
+        {% for u in usuarios %}
+          <option value="{{ u.id_usuario }}" {% if usuario_id == u.id_usuario %}selected{% endif %}>{{ u.nombre_usuario }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <button type="submit">Aplicar</button>
+  </form>
+</section>
+
+<section class="kpis row" style="gap:1rem;">
+  <div class="card">
+    <div class="muted">Unidades vendidas</div>
+    <div class="h4 mb-0">{{ resumen.get('total_unidades', 0) }}</div>
   </div>
-
-  <div class="col-lg-8">
-    <div class="card p-3 mb-3">
-      <form class="row g-2 align-items-end" method="get" action="/web/ventas">
-        <div class="col-md-3">
-          <label class="form-label">Desde</label>
-          <input class="form-control" type="date" name="desde" value="{{ desde }}">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Hasta</label>
-          <input class="form-control" type="date" name="hasta" value="{{ hasta }}">
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Producto</label>
-          <select class="form-select" name="producto_id">
-            <option value="">Todos</option>
-            {% for p in productos %}
-              <option value="{{ p.id_producto }}" {% if producto_id==p.id_producto %}selected{% endif %}>{{ p.nombre }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Usuario</label>
-          <select class="form-select" name="usuario_id">
-            <option value="">Todos</option>
-            {% for u in usuarios %}
-              <option value="{{ u.id_usuario }}" {% if usuario_id==u.id_usuario %}selected{% endif %}>{{ u.nombre_usuario }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12 mt-2">
-          <button class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filtrar</button>
-          <a class="btn btn-outline-secondary" href="/web/ventas">Limpiar</a>
-        </div>
-      </form>
-    </div>
-
-    <div class="card p-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="h6 mb-0">Listado de ventas</h2>
-        <span class="text-muted small">Total registros: {{ ventas|length }}</span>
-      </div>
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Fecha</th>
-              <th>Producto</th>
-              <th>Usuario</th>
-              <th class="text-end">Cantidad</th>
-              <th class="text-end">Total ($)</th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for v in ventas %}
-            <tr>
-              <td>{{ v.id_venta }}</td>
-              <td>{{ v.fecha_venta.strftime('%Y-%m-%d %H:%M') }}</td>
-              <td>{{ map_prod[v.id_producto].nombre if v.id_producto in map_prod else v.id_producto }}</td>
-              <td>{{ map_user[v.id_usuario].nombre_usuario if v.id_usuario in map_user else v.id_usuario }}</td>
-              <td class="text-end">{{ v.cantidad_vendida }}</td>
-              <td class="text-end">{{ '%.2f'|format(v.total_venta) }}</td>
-            </tr>
-          {% else %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No hay ventas</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="row g-3 mt-3">
-      <div class="col-md-4">
-        <div class="card p-3">
-          <div class="text-muted small">Unidades vendidas</div>
-          <div class="h4 mb-0">{{ resumen.total_unidades }}</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card p-3">
-          <div class="text-muted small">Monto total ($)</div>
-          <div class="h4 mb-0">{{ '%.2f'|format(resumen.total_ventas) }}</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card p-3">
-          <div class="text-muted small">Ticket promedio ($)</div>
-          <div class="h4 mb-0">{{ '%.2f'|format(resumen.ticket_promedio) }}</div>
-        </div>
-      </div>
-    </div>
-
+  <div class="card">
+    <div class="muted">Monto total ($)</div>
+    <div class="h4 mb-0">{{ '%.2f'|format(resumen.get('monto_total', 0)) }}</div>
   </div>
-</div>
+  <div class="card">
+    <div class="muted">Ticket promedio ($)</div>
+    <div class="h4 mb-0">{{ '%.2f'|format(resumen.get('ticket_promedio', 0)) }}</div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Registrar venta</h2>
+  <form action="/web/ventas" method="post" class="form-grid">
+    <label>Usuario
+      <select name="id_usuario" required>
+        <option value="" disabled selected>Seleccione</option>
+        {% for u in usuarios %}
+          <option value="{{ u.id_usuario }}">{{ u.nombre_usuario }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Producto
+      <select name="id_producto" required>
+        <option value="" disabled selected>Seleccione</option>
+        {% for p in productos %}
+          <option value="{{ p.id_producto }}">{{ p.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Cantidad
+      <input type="number" name="cantidad_vendida" required min="1" step="1">
+    </label>
+
+    <button type="submit">Registrar</button>
+  </form>
+
+  {% if msg %}
+    <div class="alert" style="margin-top:.5rem">{{ msg }}</div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Listado de ventas</h2>
+  {% if ventas %}
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Fecha</th><th>Usuario</th><th>Producto</th><th>Cantidad</th><th>Total ($)</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for v in ventas %}
+        <tr>
+          <td>{{ v.id_venta }}</td>
+          <td>{{ v.fecha_venta.strftime('%Y-%m-%d %H:%M') if v.fecha_venta else '' }}</td>
+          <td>{{ (map_user.get(v.id_usuario).nombre_usuario) if map_user.get(v.id_usuario) else v.id_usuario }}</td>
+          <td>{{ (map_prod.get(v.id_producto).nombre) if map_prod.get(v.id_producto) else v.id_producto }}</td>
+          <td>{{ v.cantidad_vendida }}</td>
+          <td>{{ '%.2f'|format(v.total_venta or 0) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p>No hay ventas para el filtro.</p>
+  {% endif %}
+</section>
+
 {% endblock %}

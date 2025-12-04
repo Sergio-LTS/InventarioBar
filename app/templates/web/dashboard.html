@@ -1,73 +1,74 @@
 {% extends "web/base.html" %}
-{% block title %}Dashboard{% endblock %}
-
 {% block content %}
-<h2 class="mb-4">Dashboard</h2>
 
-<form action="/web/dashboard/rebuild" method="post" class="mb-4">
-  <button type="submit" class="btn">Reconstruir resumen</button>
+<h1>Dashboard</h1>
+
+<section class="kpis row" style="gap:1rem;">
+  <div class="card">
+    <div class="muted">Unidades vendidas</div>
+    <div class="h4 mb-0">{{ top|sum(attribute='total_vendido') }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Monto total ($)</div>
+    <div class="h4 mb-0">{{ '%.2f'|format(resumen.get('monto_total', 0)) }}</div>
+  </div>
+  <div class="card">
+    <div class="muted">Ticket promedio ($)</div>
+    <div class="h4 mb-0">{{ '%.2f'|format(resumen.get('ticket_promedio', 0)) }}</div>
+  </div>
+</section>
+
+<section class="row" style="gap:1rem;">
+  <div class="card" style="flex:1;">
+    <h2>Top 10 más vendidos</h2>
+    {% if top %}
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr><th>Producto</th><th>Unidades</th><th>Ingresos ($)</th></tr>
+        </thead>
+        <tbody>
+          {% for r in top %}
+          <tr>
+            <td>{{ r.nombre }}</td>
+            <td>{{ r.total_vendido }}</td>
+            <td>{{ '%.2f'|format(r.total_ingresos or 0) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p>No hay datos aún.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="flex:1;">
+    <h2>10 menos vendidos</h2>
+    {% if bottom %}
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr><th>Producto</th><th>Unidades</th></tr>
+        </thead>
+        <tbody>
+          {% for r in bottom %}
+          <tr>
+            <td>{{ r.nombre }}</td>
+            <td>{{ r.total_vendido }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p>No hay datos aún.</p>
+    {% endif %}
+  </div>
+</section>
+
+<form action="/web/dashboard/rebuild" method="post" style="margin-top:1rem;">
+  <button type="submit">Recalcular resúmenes</button>
 </form>
 
-<div class="cards-grid">
-  <div class="card">
-    <div class="card-title">Unidades vendidas</div>
-    <div class="h4 mb-0">{{ resumen.unidades_vendidas }}</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Monto total ($)</div>
-    <div class="h4 mb-0">{{ '%.2f'|format(resumen.monto_total) }}</div>
-  </div>
-  <div class="card">
-    <div class="card-title">Ticket promedio ($)</div>
-    <div class="h4 mb-0">{{ '%.2f'|format(resumen.ticket_promedio) }}</div>
-  </div>
-</div>
-
-<hr class="my-4"/>
-
-<h3 class="mb-2">Más vendidos</h3>
-<table class="table">
-  <thead>
-    <tr>
-      <th>ID</th><th>Producto</th><th>Unidades</th><th>Monto ($)</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% if top and top|length > 0 %}
-    {% for r in top %}
-      <tr>
-        <td>{{ r.id_producto }}</td>
-        <td>{{ r.nombre }}</td>
-        <td>{{ r.total_vendido }}</td>
-        <td>{{ '%.2f'|format(r.monto_total) }}</td>
-      </tr>
-    {% endfor %}
-  {% else %}
-    <tr><td colspan="4" class="muted">Sin datos</td></tr>
-  {% endif %}
-  </tbody>
-</table>
-
-<h3 class="mb-2">Menos vendidos</h3>
-<table class="table">
-  <thead>
-    <tr>
-      <th>ID</th><th>Producto</th><th>Unidades</th><th>Monto ($)</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% if bottom and bottom|length > 0 %}
-    {% for r in bottom %}
-      <tr>
-        <td>{{ r.id_producto }}</td>
-        <td>{{ r.nombre }}</td>
-        <td>{{ r.total_vendido }}</td>
-        <td>{{ '%.2f'|format(r.monto_total) }}</td>
-      </tr>
-    {% endfor %}
-  {% else %}
-    <tr><td colspan="4" class="muted">Sin datos</td></tr>
-  {% endif %}
-  </tbody>
-</table>
 {% endblock %}

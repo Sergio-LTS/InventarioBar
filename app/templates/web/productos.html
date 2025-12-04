@@ -1,96 +1,78 @@
 {% extends "web/base.html" %}
-{% block title %}Productos · InventarioBar{% endblock %}
-
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h1 class="h4 mb-0">Productos</h1>
-  <form class="d-flex" method="get" action="/web/productos">
-    <input class="form-control me-2" type="search" name="q" value="{{ q }}" placeholder="Buscar por nombre o marca">
-    <button class="btn btn-primary">Buscar</button>
+
+<h1>Productos</h1>
+
+<section class="card">
+  <h2>Crear producto</h2>
+  <form action="/web/productos" method="post" enctype="multipart/form-data" class="form-grid">
+    <label>Nombre
+      <input type="text" name="nombre" required minlength="2" maxlength="80">
+    </label>
+    <label>Categoría
+      <input type="text" name="categoria" required minlength="2" maxlength="40">
+    </label>
+    <label>Marca
+      <input type="text" name="marca" required minlength="1" maxlength="40">
+    </label>
+    <label>Cantidad
+      <input type="number" name="cantidad" required min="0" step="1">
+    </label>
+    <label>Precio de venta
+      <input type="number" name="precio_venta" required min="0.01" step="0.01">
+    </label>
+    <label>Imagen (opcional)
+      <input type="file" name="imagen" accept="image/*">
+    </label>
+    <button type="submit">Crear producto</button>
   </form>
-</div>
+</section>
 
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card p-3">
-      <h2 class="h6">Agregar producto</h2>
-      <form class="mt-2" action="/web/productos" method="post" enctype="multipart/form-data">
-        <div class="mb-2">
-          <label class="form-label">Nombre</label>
-          <input class="form-control" name="nombre" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Categoría</label>
-          <input class="form-control" name="categoria" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Marca</label>
-          <input class="form-control" name="marca" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Cantidad</label>
-          <input class="form-control" type="number" name="cantidad" min="0" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Precio venta</label>
-          <input class="form-control" type="number" name="precio_venta" step="0.01" min="0" required>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Imagen (opcional)</label>
-          <input class="form-control" type="file" name="imagen" accept="image/*">
-        </div>
-        <button class="btn btn-success w-100"><i class="bi bi-plus-circle me-1"></i>Guardar</button>
-      </form>
-    </div>
-  </div>
+<section class="card">
+  <h2>Listado</h2>
 
-  <div class="col-lg-8">
-    <div class="card p-3">
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>Img</th>
-              <th>Nombre</th>
-              <th>Categoría</th>
-              <th>Marca</th>
-              <th class="text-end">Stock</th>
-              <th class="text-end">Precio</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for p in productos %}
-            <tr>
-              <td style="width:72px;">
-                {% if p.imagen_url %}
-                  <img class="img-thumb" src="{{ p.imagen_url }}" alt="img">
-                {% else %}
-                  <div class="img-thumb d-flex align-items-center justify-content-center text-muted">—</div>
-                {% endif %}
-              </td>
-              <td class="fw-semibold">{{ p.nombre }}</td>
-              <td>{{ p.categoria }}</td>
-              <td>{{ p.marca }}</td>
-              <td class="text-end">{{ p.cantidad }}</td>
-              <td class="text-end">${{ '%.0f'|format(p.precio_venta) }}</td>
-              <td class="text-end">
-                <form action="/web/productos/{{ p.id_producto }}/delete" method="post" onsubmit="return confirm('¿Eliminar producto?')">
-                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                </form>
-              </td>
-            </tr>
-          {% else %}
-            <tr><td colspan="7" class="text-center text-muted py-4">Sin resultados</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div class="d-flex justify-content-between">
-        <a class="btn btn-outline-secondary {% if page<=1 %}disabled{% endif %}" href="/web/productos?q={{ q }}&page={{ page-1 }}">← Anterior</a>
-        <a class="btn btn-outline-secondary" href="/web/productos?q={{ q }}&page={{ page+1 }}">Siguiente →</a>
-      </div>
-    </div>
+  <form action="/web/productos" method="get" class="row" style="gap:.5rem; margin-bottom: .5rem;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nombre...">
+    <button type="submit">Buscar</button>
+  </form>
+
+  {% if productos %}
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Nombre</th><th>Categoría</th><th>Marca</th><th>Cantidad</th><th>Precio</th><th>Imagen</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in productos %}
+        <tr>
+          <td>{{ p.id_producto }}</td>
+          <td>{{ p.nombre }}</td>
+          <td>{{ p.categoria }}</td>
+          <td>{{ p.marca }}</td>
+          <td>{{ p.cantidad }}</td>
+          <td>{{ '%.2f'|format(p.precio_venta or 0) }}</td>
+          <td>
+            {% if p.imagen_url %}
+              <img src="{{ p.imagen_url }}" alt="img {{ p.nombre }}" style="height:40px;">
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            <form action="/web/productos/{{ p.id_producto }}/delete" method="post" onsubmit="return confirm('¿Eliminar producto?');">
+              <button type="submit">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
+  {% else %}
+    <p>No hay productos.</p>
+  {% endif %}
+</section>
+
 {% endblock %}

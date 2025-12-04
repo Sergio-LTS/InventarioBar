@@ -1,76 +1,62 @@
 {% extends "web/base.html" %}
-{% block title %}Usuarios · InventarioBar{% endblock %}
-
 {% block content %}
-<div class="row g-4">
-  <div class="col-lg-4">
-    <div class="card p-3">
-      <h2 class="h6">Crear usuario</h2>
-      <form class="mt-2" action="/web/usuarios" method="post" enctype="multipart/form-data">
-        <div class="mb-2">
-          <label class="form-label">Nombre de usuario</label>
-          <input class="form-control" name="nombre_usuario" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Correo</label>
-          <input class="form-control" type="email" name="correo" required>
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Rol</label>
-          <select class="form-select" name="rol" required>
-            <option value="administrador">administrador</option>
-            <option value="vendedor">vendedor</option>
-            <option value="operador">operador</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Foto (opcional)</label>
-          <input class="form-control" type="file" name="foto" accept="image/*">
-        </div>
-        <button class="btn btn-success w-100"><i class="bi bi-person-plus me-1"></i>Guardar</button>
-      </form>
-    </div>
-  </div>
 
-  <div class="col-lg-8">
-    <div class="card p-3">
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead>
-            <tr>
-              <th>Foto</th>
-              <th>Usuario</th>
-              <th>Correo</th>
-              <th>Rol</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for u in usuarios %}
-            <tr>
-              <td style="width:72px;">
-                {% if u.foto_url %}
-                  <img class="img-thumb" src="{{ u.foto_url }}" alt="foto">
-                {% else %}
-                  <div class="img-thumb d-flex align-items-center justify-content-center text-muted">—</div>
-                {% endif %}
-              </td>
-              <td class="fw-semibold">{{ u.nombre_usuario }}</td>
-              <td>{{ u.correo }}</td>
-              <td><span class="badge bg-secondary">{{ u.rol }}</span></td>
-              <td class="text-end">
-                <form action="/web/usuarios/{{ u.id_usuario }}/delete" method="post" onsubmit="return confirm('¿Eliminar usuario?')">
-                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                </form>
-              </td>
-            </tr>
-          {% else %}
-            <tr><td colspan="5" class="text-center text-muted py-4">No hay usuarios</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
+<h1>Usuarios</h1>
+
+<section class="card">
+  <h2>Crear usuario</h2>
+  <form action="/web/usuarios" method="post" enctype="multipart/form-data" class="form-grid">
+    <label>Nombre
+      <input type="text" name="nombre_usuario" required minlength="2" maxlength="60">
+    </label>
+    <label>Correo
+      <input type="email" name="correo" required minlength="5" maxlength="120">
+    </label>
+    <label>Rol
+      <input type="text" name="rol" required minlength="3" maxlength="30">
+    </label>
+    <label>Foto (opcional)
+      <input type="file" name="foto" accept="image/*">
+    </label>
+    <button type="submit">Crear usuario</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Listado</h2>
+  {% if usuarios %}
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Foto</th><th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in usuarios %}
+        <tr>
+          <td>{{ u.id_usuario }}</td>
+          <td>{{ u.nombre_usuario }}</td>
+          <td>{{ u.correo }}</td>
+          <td>{{ u.rol }}</td>
+          <td>
+            {% if u.foto_url %}
+              <img src="{{ u.foto_url }}" alt="foto {{ u.nombre_usuario }}" style="height:40px;">
+            {% else %} — {% endif %}
+          </td>
+          <td>
+            <form action="/web/usuarios/{{ u.id_usuario }}/delete" method="post" onsubmit="return confirm('¿Eliminar usuario?');">
+              <button type="submit">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </div>
-</div>
+  {% else %}
+    <p>No hay usuarios.</p>
+  {% endif %}
+</section>
+
 {% endblock %}

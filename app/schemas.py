@@ -12,7 +12,9 @@ class UsuarioBase(BaseModel):
     foto_url: Optional[str] = None
 
 class UsuarioCreate(UsuarioBase):
-    pass
+    id_usuario: int
+    id_producto: int
+    cantidad_vendida: int = Field(gt=0)
 
 class UsuarioUpdate(BaseModel):
     nombre_usuario: Optional[str] = None
@@ -36,7 +38,12 @@ class ProductoBase(BaseModel):
     imagen_url: Optional[str] = None
 
 class ProductoCreate(ProductoBase):
-    pass
+    nombre: str = Field(min_length=2, max_length=80)
+    categoria: str = Field(min_length=2, max_length=40)
+    marca: str = Field(min_length=1, max_length=40)
+    cantidad: int = Field(ge=0)
+    precio_venta: float = Field(gt=0)
+    imagen_url: str | None = None
 
 class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
@@ -56,7 +63,7 @@ class ProductoOut(ProductoBase):
 class VentaCreate(BaseModel):
     id_usuario: int
     id_producto: int
-    cantidad_vendida: int = Field(ge=1)
+    cantidad_vendida: int = Field(gt=0)
 
 class VentaOut(BaseModel):
     id_venta: int
