@@ -31,11 +31,53 @@ def _parse_date(s: Optional[str]) -> Optional[datetime]:
     except Exception:
         return None
 
+
 def _parse_int(s: Optional[str]) -> Optional[int]:
     if s is None:
         return None
     s = s.strip()
     return int(s) if s.isdigit() else None
+
+
+def _normalize_resumen(res: Optional[dict]) -> dict:
+    """
+    Normaliza las claves esperadas por los templates:
+    - unidades_vendidas (int)
+    - total_ventas (float)
+    - ticket_promedio (float)
+    Acepta posibles nombres alternos que pueda retornar el CRUD.
+    """
+    res = res or {}
+    unidades = (
+        res.get("unidades_vendidas")
+        or res.get("unidades")
+        or res.get("total_unidades")
+        or 0
+    )
+    total = (
+        res.get("total_ventas")
+        or res.get("monto_total")
+        or res.get("total")
+        or 0.0
+    )
+    try:
+        unidades = int(unidades or 0)
+    except Exception:
+        unidades = 0
+    try:
+        total = float(total or 0)
+    except Exception:
+        total = 0.0
+
+    ticket = res.get("ticket_promedio")
+    if ticket is None:
+        ticket = (total / unidades) if unidades else 0.0
+
+    return {
+        "unidades_vendidas": unidades,
+        "total_ventas": total,
+        "ticket_promedio": float(ticket or 0),
+    }
 
 
 # ---------- HOME ----------
@@ -60,6 +102,7 @@ async def pagina_productos(
         "web/productos.html",
         {"request": request, "productos": productos, "q": q or "", "page": page},
     )
+
 
 @router.post("/web/productos")
 async def crear_producto_html(
@@ -88,6 +131,7 @@ async def crear_producto_html(
     logger.info("Producto creado: %s", nombre)
     return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
 
+
 @router.post("/web/productos/{id_producto}/delete")
 async def eliminar_producto_html(id_producto: int, db: AsyncSession = Depends(get_db)):
     await crud.delete_producto(db, id_producto)
@@ -102,6 +146,7 @@ async def pagina_usuarios(request: Request, db: AsyncSession = Depends(get_db)):
         "web/usuarios.html",
         {"request": request, "usuarios": usuarios},
     )
+
 
 @router.post("/web/usuarios")
 async def crear_usuario_html(
@@ -126,6 +171,7 @@ async def crear_usuario_html(
     logger.info("Usuario creado: %s", nombre_usuario)
     return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
 
+
 @router.post("/web/usuarios/{id_usuario}/delete")
 async def eliminar_usuario_html(id_usuario: int, db: AsyncSession = Depends(get_db)):
     await crud.delete_usuario(db, id_usuario)
@@ -139,8 +185,8 @@ async def pagina_ventas(
     db: AsyncSession = Depends(get_db),
     desde: Optional[str] = None,
     hasta: Optional[str] = None,
-    producto_id: Optional[str] = None,  # <- str para tolerar vacío
-    usuario_id: Optional[str] = None,   # <- str para tolerar vacío
+    producto_id: Optional[str] = None,  # tolera vacío
+    usuario_id: Optional[str] = None,   # tolera vacío
     msg: Optional[str] = None,
 ):
     dt_desde = _parse_date(desde)
@@ -152,11 +198,9 @@ async def pagina_ventas(
     prod_id = _parse_int(producto_id)
     user_id = _parse_int(usuario_id)
 
-    # Datos para selects del formulario
     productos = await crud.list_productos(db)
     usuarios = await crud.list_usuarios(db)
 
-    # Ventas filtradas
     ventas = await crud.list_ventas(
         db,
         desde=dt_desde,
@@ -165,12 +209,11 @@ async def pagina_ventas(
         usuario_id=user_id,
     )
 
-    # Diccionarios para mostrar nombres
     map_prod = {p.id_producto: p for p in productos}
     map_user = {u.id_usuario: u for u in usuarios}
 
-    # Resumen del periodo
-    resumen = await crud.resumen_ventas_periodo(db, dt_desde, dt_hasta)
+    resumen_raw = await crud.resumen_ventas_periodo(db, dt_desde, dt_hasta)
+    resumen = _normalize_resumen(resumen_raw)
 
     return templates.TemplateResponse(
         "web/ventas.html",
@@ -189,6 +232,7 @@ async def pagina_ventas(
             "resumen": resumen,
         },
     )
+
 
 @router.post("/web/ventas")
 async def crear_venta_html(
@@ -218,11 +262,13 @@ async def crear_venta_html(
 async def pagina_dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     top = await crud.list_productos_mas_vendidos(db, limit=10)
     bottom = await crud.list_productos_menos_vendidos(db, limit=10)
-    resumen = await crud.resumen_ventas_periodo(db)
+    resumen_raw = await crud.resumen_ventas_periodo(db)
+    resumen = _normalize_resumen(resumen_raw)
     return templates.TemplateResponse(
         "web/dashboard.html",
         {"request": request, "top": top, "bottom": bottom, "resumen": resumen},
     )
+
 
 @router.post("/web/dashboard/rebuild")
 async def rebuild_dashboard(db: AsyncSession = Depends(get_db)):
