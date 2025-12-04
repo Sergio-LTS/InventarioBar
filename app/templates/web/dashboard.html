@@ -1,78 +1,73 @@
 {% extends "web/base.html" %}
-{% block title %}Dashboard · InventarioBar{% endblock %}
+{% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <h1 class="h4 mb-0">Dashboard</h1>
-  <form action="/web/dashboard/rebuild" method="post" onsubmit="return confirm('¿Reconstruir resúmenes?')">
-    <button class="btn btn-outline-primary"><i class="bi bi-arrow-repeat me-1"></i>Rebuild</button>
-  </form>
-</div>
+<h2 class="mb-4">Dashboard</h2>
 
-<div class="row g-3 mb-3">
-  <div class="col-md-4">
-    <div class="card p-3">
-      <div class="text-muted small">Unidades vendidas</div>
-      <div class="h4 mb-0">{{ resumen.total_unidades }}</div>
-    </div>
+<form action="/web/dashboard/rebuild" method="post" class="mb-4">
+  <button type="submit" class="btn">Reconstruir resumen</button>
+</form>
+
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-title">Unidades vendidas</div>
+    <div class="h4 mb-0">{{ resumen.unidades_vendidas }}</div>
   </div>
-  <div class="col-md-4">
-    <div class="card p-3">
-      <div class="text-muted small">Monto total ($)</div>
-      <div class="h4 mb-0">{{ '%.2f'|format(resumen.total_ventas) }}</div>
-    </div>
+  <div class="card">
+    <div class="card-title">Monto total ($)</div>
+    <div class="h4 mb-0">{{ '%.2f'|format(resumen.monto_total) }}</div>
   </div>
-  <div class="col-md-4">
-    <div class="card p-3">
-      <div class="text-muted small">Ticket promedio ($)</div>
-      <div class="h4 mb-0">{{ '%.2f'|format(resumen.ticket_promedio) }}</div>
-    </div>
+  <div class="card">
+    <div class="card-title">Ticket promedio ($)</div>
+    <div class="h4 mb-0">{{ '%.2f'|format(resumen.ticket_promedio) }}</div>
   </div>
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <h2 class="h6">Top más vendidos</h2>
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead><tr><th>#</th><th>Producto</th><th class="text-end">Total</th></tr></thead>
-          <tbody>
-          {% for r in top %}
-            <tr>
-              <td>{{ loop.index }}</td>
-              <td>{{ r.nombre }}</td>
-              <td class="text-end">{{ r.total_vendido }}</td>
-            </tr>
-          {% else %}
-            <tr><td colspan="3" class="text-center text-muted py-4">Sin datos</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+<hr class="my-4"/>
 
-  <div class="col-lg-6">
-    <div class="card p-3">
-      <h2 class="h6">Menos vendidos</h2>
-      <div class="table-responsive">
-        <table class="table align-middle">
-          <thead><tr><th>#</th><th>Producto</th><th class="text-end">Total</th></tr></thead>
-          <tbody>
-          {% for r in bottom %}
-            <tr>
-              <td>{{ loop.index }}</td>
-              <td>{{ r.nombre }}</td>
-              <td class="text-end">{{ r.total_vendido }}</td>
-            </tr>
-          {% else %}
-            <tr><td colspan="3" class="text-center text-muted py-4">Sin datos</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
+<h3 class="mb-2">Más vendidos</h3>
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Producto</th><th>Unidades</th><th>Monto ($)</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% if top and top|length > 0 %}
+    {% for r in top %}
+      <tr>
+        <td>{{ r.id_producto }}</td>
+        <td>{{ r.nombre }}</td>
+        <td>{{ r.total_vendido }}</td>
+        <td>{{ '%.2f'|format(r.monto_total) }}</td>
+      </tr>
+    {% endfor %}
+  {% else %}
+    <tr><td colspan="4" class="muted">Sin datos</td></tr>
+  {% endif %}
+  </tbody>
+</table>
+
+<h3 class="mb-2">Menos vendidos</h3>
+<table class="table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Producto</th><th>Unidades</th><th>Monto ($)</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% if bottom and bottom|length > 0 %}
+    {% for r in bottom %}
+      <tr>
+        <td>{{ r.id_producto }}</td>
+        <td>{{ r.nombre }}</td>
+        <td>{{ r.total_vendido }}</td>
+        <td>{{ '%.2f'|format(r.monto_total) }}</td>
+      </tr>
+    {% endfor %}
+  {% else %}
+    <tr><td colspan="4" class="muted">Sin datos</td></tr>
+  {% endif %}
+  </tbody>
+</table>
 {% endblock %}

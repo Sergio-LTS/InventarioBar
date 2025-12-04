@@ -284,25 +284,29 @@ async def resumen_ventas_periodo(
     desde: datetime | None = None,
     hasta: datetime | None = None,
 ) -> dict:
+    V = models.Venta
+
     stmt = select(
-        func.coalesce(func.sum(models.Venta.cantidad_vendida), 0).label("unidades"),
-        func.coalesce(func.sum(models.Venta.total_venta), 0.0).label("monto"),
-        func.count(models.Venta.id_venta).label("num")
+        func.coalesce(func.sum(V.cantidad_vendida), 0).label("unidades_vendidas"),
+        func.coalesce(func.sum(V.total_venta), 0.0).label("monto_total"),
+        func.count(V.id_venta).label("num_ventas"),
     )
     if desde:
-        stmt = stmt.where(models.Venta.fecha_venta >= desde)
+        stmt = stmt.where(V.fecha_venta >= desde)
     if hasta:
-        stmt = stmt.where(models.Venta.fecha_venta <= hasta)
+        stmt = stmt.where(V.fecha_venta <= hasta)
 
     row = (await db.execute(stmt)).one()
-    unidades = int(row.unidades or 0)
-    monto = float(row.monto or 0.0)
-    num = int(row.num or 0)
+    unidades = int(row.unidades_vendidas or 0)
+    monto = float(row.monto_total or 0.0)
+    num = int(row.num_ventas or 0)
     ticket = float(monto / num) if num > 0 else 0.0
 
+    # Devolvemos alias para compatibilidad con templates viejos
     return {
         "unidades_vendidas": unidades,
         "monto_total": monto,
         "ticket_promedio": ticket,
         "num_ventas": num,
+        "total_ventas": monto,  # alias = monto_total
     }
