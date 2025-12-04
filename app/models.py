@@ -1,7 +1,8 @@
 # app/models.py
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Column, Integer, Float, DateTime, ForeignKey, func, String
-
+import sqlalchemy as sa
+from .database import Base
 
 class Base(DeclarativeBase):
     pass
@@ -14,6 +15,8 @@ class Usuario(Base):
     rol: Mapped[str] = mapped_column(String(20), nullable=False, default="consulta")
     foto_url = Column(String, nullable=True)
     creado_en: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    activo = sa.Column(sa.Boolean, nullable=False, server_default=sa.true())
+ventas = relationship("Venta", back_populates="usuario")
 
 class Producto(Base):
     __tablename__ = "productos"
@@ -25,25 +28,48 @@ class Producto(Base):
     precio_venta: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     imagen_url = Column(String, nullable=True)
     fecha_agregado: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
+    activo = sa.Column(sa.Boolean, nullable=False, server_default=sa.true())
+ventas = relationship("Venta", back_populates="producto")
 
 class Venta(Base):
     __tablename__ = "ventas"
-    id_venta: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    id_usuario: Mapped[int] = mapped_column(ForeignKey("usuarios.id_usuario"), nullable=False)
-    id_producto: Mapped[int] = mapped_column(ForeignKey("productos.id_producto"), nullable=False)
-    cantidad_vendida: Mapped[int] = mapped_column(Integer, nullable=False)
-    fecha_venta: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    total_venta: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+
+    id_venta = sa.Column(sa.Integer, primary_key=True, index=True)
+    id_usuario = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("usuarios.id_usuario", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    id_producto = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("productos.id_producto", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    cantidad_vendida = sa.Column(sa.Integer, nullable=False)
+    total_venta = sa.Column(sa.Numeric(10, 2), nullable=False)
+    fecha_venta = sa.Column(sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+
+    usuario = relationship("Usuario", passive_deletes=True)
+    producto = relationship("Producto", passive_deletes=True)
 
 class InventarioMovimiento(Base):
     __tablename__ = "inventario_movimientos"
-    id_movimiento: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    id_producto: Mapped[int] = mapped_column(ForeignKey("productos.id_producto"), nullable=False)
-    tipo_movimiento: Mapped[str] = mapped_column(String(10), nullable=False)  # 'entrada'/'salida'
-    cantidad: Mapped[int] = mapped_column(Integer, nullable=False)
-    fecha_movimiento: Mapped["DateTime"] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    descripcion: Mapped[str] = mapped_column(String(255), nullable=True)
+
+    id_movimiento = sa.Column(sa.Integer, primary_key=True, index=True)
+    id_producto = sa.Column(
+        sa.Integer,
+        sa.ForeignKey("productos.id_producto", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    tipo_movimiento = sa.Column(sa.String(20), nullable=False)  # 'entrada'/'salida'
+    cantidad = sa.Column(sa.Integer, nullable=False)
+    descripcion = sa.Column(sa.String(255))
+    fecha = sa.Column(sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+
+    producto = relationship("Producto", passive_deletes=True)
 
 class ProductoMasVendido(Base):
     __tablename__ = "productos_mas_vendidos"

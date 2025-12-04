@@ -51,7 +51,7 @@ async def delete_usuario(db: AsyncSession, usuario_id: int):
         return None
     await db.delete(obj)
     await db.commit()
-    return obj
+    return True
 
 
 # =============== PRODUCTOS ===============
@@ -101,55 +101,69 @@ async def delete_producto(db: AsyncSession, producto_id: int):
         return None
     await db.delete(obj)
     await db.commit()
-    return obj
+    return True
 
 
 # =============== VENTAS ===============
 async def create_venta(db: AsyncSession, data: schemas.VentaCreate):
-    producto = await db.get(models.Producto, data.id_producto)
-    if not producto:
-        raise ValueError("Producto no existe")
+    # =============== VENTAS ===============
+    async def create_venta(db: AsyncSession, data: schemas.VentaCreate):
+        # 1) Trae usuario y producto
+        usuario = await db.get(models.Usuario, data.id_usuario)
+        producto = await db.get(models.Producto, data.id_producto)
 
-    if producto.cantidad < data.cantidad_vendida:
-        raise ValueError("Stock insuficiente")
+        # 2) Validaciones fuertes (existe + está activo)
+        if not usuario or not getattr(usuario, "activo", True):
+            raise ValueError("Usuario no existe o está inactivo")
+        if not producto or not getattr(producto, "activo", True):
+            raise ValueError("Producto no existe o está inactivo")
 
-    usuario = await db.get(models.Usuario, data.id_usuario)
-    if not usuario:
-        raise ValueError("Usuario no existe")
+        # 3) Stock suficiente
+        if producto.cantidad < data.cantidad_vendida:
+            raise ValueError("Stock insuficiente")
 
-    # Actualiza stock
-    producto.cantidad -= data.cantidad_vendida
+        # 4) Actualiza stock y crea la venta
+        producto.cantidad -= data.cantidad_vendida
+        total = round(producto.precio_venta * data.cantidad_vendida, 2)
 
-    total = round(producto.precio_venta * data.cantidad_vendida, 2)
-    venta = models.Venta(
-        id_usuario=data.id_usuario,
-        id_producto=data.id_producto,
-        cantidad_vendida=data.cantidad_vendida,
-        total_venta=total,
-    )
-    db.add(venta)
+        venta = models.Venta(
+            id_usuario=data.id_usuario,
+            id_producto=data.id_producto,
+            cantidad_vendida=data.cantidad_vendida,
+            total_venta=total,
+        )
+        db.add(venta)
 
-    # Registrar movimiento de salida
-    mov = models.InventarioMovimiento(
-        id_producto=data.id_producto,
-        tipo_movimiento="salida",
-        cantidad=data.cantidad_vendida,
-        descripcion="venta",
-    )
-    db.add(mov)
+        # 5) Registra movimiento de inventario (salida por venta)
+        mov = models.InventarioMovimiento(
+            id_producto=data.id_producto,
+            tipo_movimiento="salida",
+            cantidad=data.cantidad_vendida,
+            descripcion="venta",
+        )
+        db.add(mov)
 
-    await db.commit()
-    await db.refresh(venta)
-    return venta
+        await db.commit()
+        await db.refresh(venta)
+        return venta
+
 
 async def list_ventas(
     db: AsyncSession,
     desde: datetime | None = None,
     hasta: datetime | None = None,
     producto_id: int | None = None,
-    usuario_id: int | None = None
+    usuario_id: int | None = None,
+    solo_activos: bool = False,   # <--- parámetro opcional
 ):
     stmt = select(models.Venta)
+    if solo_activos:
+        stmt = (
+            stmt.join(models.Producto, models.Producto.id_producto == models.Venta.id_producto)
+                .join(models.Usuario, models.Usuario.id_usuario == models.Venta.id_usuario)
+                .where(models.Producto.activo.is_(True), models.Usuario.activo.is_(True))
+        )
+
     if desde:
         stmt = stmt.where(models.Venta.fecha_venta >= desde)
     if hasta:
@@ -158,6 +172,7 @@ async def list_ventas(
         stmt = stmt.where(models.Venta.id_producto == producto_id)
     if usuario_id:
         stmt = stmt.where(models.Venta.id_usuario == usuario_id)
+
     res = await db.execute(stmt.order_by(models.Venta.id_venta.desc()))
     return res.scalars().all()
 
