@@ -1,14 +1,12 @@
 # app/crud.py
 from datetime import datetime
 from typing import Optional
-
-from sqlalchemy import select, func, case, or_, delete
+from sqlalchemy import select, func, case, or_, delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-
 from . import models, schemas
 from .models import ProductoMasVendido as PMV, ProductoMenosVendido as PMeV
-
+from types import SimpleNamespace
 
 # =============== USUARIOS ===============
 async def create_usuario(db: AsyncSession, data: schemas.UsuarioCreate):
@@ -106,48 +104,44 @@ async def delete_producto(db: AsyncSession, producto_id: int):
 
 # =============== VENTAS ===============
 async def create_venta(db: AsyncSession, data: schemas.VentaCreate):
-    # =============== VENTAS ===============
-    async def create_venta(db: AsyncSession, data: schemas.VentaCreate):
-        # 1) Trae usuario y producto
-        usuario = await db.get(models.Usuario, data.id_usuario)
-        producto = await db.get(models.Producto, data.id_producto)
+    producto = await db.get(models.Producto, data.id_producto)
+    if not producto:
+        raise ValueError("Producto no existe")
 
-        # 2) Validaciones fuertes (existe + está activo)
-        if not usuario or not getattr(usuario, "activo", True):
-            raise ValueError("Usuario no existe o está inactivo")
-        if not producto or not getattr(producto, "activo", True):
-            raise ValueError("Producto no existe o está inactivo")
+    if producto.cantidad < data.cantidad_vendida:
+        raise ValueError("Stock insuficiente")
 
-        # 3) Stock suficiente
-        if producto.cantidad < data.cantidad_vendida:
-            raise ValueError("Stock insuficiente")
+    usuario = await db.get(models.Usuario, data.id_usuario)
+    if not usuario:
+        raise ValueError("Usuario no existe")
 
-        # 4) Actualiza stock y crea la venta
-        producto.cantidad -= data.cantidad_vendida
-        total = round(producto.precio_venta * data.cantidad_vendida, 2)
+    # Actualiza stock
+    producto.cantidad -= data.cantidad_vendida
 
-        venta = models.Venta(
-            id_usuario=data.id_usuario,
-            id_producto=data.id_producto,
-            cantidad_vendida=data.cantidad_vendida,
-            total_venta=total,
-        )
-        db.add(venta)
+    total = round(producto.precio_venta * data.cantidad_vendida, 2)
+    venta = models.Venta(
+        id_usuario=data.id_usuario,
+        id_producto=data.id_producto,
+        cantidad_vendida=data.cantidad_vendida,
+        total_venta=total,
+    )
+    db.add(venta)
 
-        # 5) Registra movimiento de inventario (salida por venta)
-        mov = models.InventarioMovimiento(
-            id_producto=data.id_producto,
-            tipo_movimiento="salida",
-            cantidad=data.cantidad_vendida,
-            descripcion="venta",
-        )
-        db.add(mov)
+    # Registrar movimiento de salida
+    mov = models.InventarioMovimiento(
+        id_producto=data.id_producto,
+        tipo_movimiento="salida",
+        cantidad=data.cantidad_vendida,
+        descripcion="venta",
+    )
+    db.add(mov)
 
-        await db.commit()
-        await db.refresh(venta)
-        return venta
+    # Asegura asignación de ID antes del commit (útil para logs/depuración)
+    await db.flush()
 
-
+    await db.commit()
+    await db.refresh(venta)
+    return venta
 async def list_ventas(
     db: AsyncSession,
     desde: datetime | None = None,
@@ -239,55 +233,67 @@ async def rebuild_resumenes_ventas(db: AsyncSession):
     await db.commit()
 
 async def list_productos_mas_vendidos(db: AsyncSession, limit: int = 10):
-    res = await db.execute(select(PMV).order_by(PMV.total_vendido.desc()).limit(limit))
-    return res.scalars().all()
+    p = models.Producto
+    v = models.Venta
+    stmt = (
+        select(
+            p.id_producto,
+            p.nombre,
+            func.coalesce(func.sum(v.cantidad_vendida), 0).label("total_vendido"),
+        )
+        .join(v, v.id_producto == p.id_producto, isouter=True)
+        .group_by(p.id_producto, p.nombre)
+        .order_by(text("total_vendido DESC"))
+        .limit(limit)
+    )
+    res = await db.execute(stmt)
+    rows = res.all()
+    return [
+        SimpleNamespace(id_producto=idp, nombre=nom, total_vendido=tot or 0)
+        for (idp, nom, tot) in rows
+    ]
 
 async def list_productos_menos_vendidos(db: AsyncSession, limit: int = 10):
-    res = await db.execute(select(PMeV).order_by(PMeV.total_vendido.asc()).limit(limit))
-    return res.scalars().all()
+    p = models.Producto
+    v = models.Venta
+    stmt = (
+        select(
+            p.id_producto,
+            p.nombre,
+            func.coalesce(func.sum(v.cantidad_vendida), 0).label("total_vendido"),
+        )
+        .join(v, v.id_producto == p.id_producto, isouter=True)
+        .group_by(p.id_producto, p.nombre)
+        .order_by(text("total_vendido ASC"))
+        .limit(limit)
+    )
+    res = await db.execute(stmt)
+    rows = res.all()
+    return [
+        SimpleNamespace(id_producto=idp, nombre=nom, total_vendido=tot or 0)
+        for (idp, nom, tot) in rows
+    ]
 
 
 # =============== REPORTES EXTRA ===============
-async def resumen_ventas_periodo(
-    db: AsyncSession,
-    desde: datetime | None = None,
-    hasta: datetime | None = None
-):
-    q_stmt = select(models.Venta)
-    if desde:
-        q_stmt = q_stmt.where(models.Venta.fecha_venta >= desde)
-    if hasta:
-        q_stmt = q_stmt.where(models.Venta.fecha_venta <= hasta)
-    ventas = (await db.execute(q_stmt)).scalars().all()
-
-    total_unidades = sum(v.cantidad_vendida for v in ventas)
-    total_ventas = round(sum(v.total_venta for v in ventas), 2)
-    ticket_prom = round(total_ventas / len(ventas), 2) if ventas else 0.0
-
-    agg = (
-        select(
-            models.Venta.id_producto,
-            models.Producto.nombre,
-            func.sum(models.Venta.cantidad_vendida).label("unidades"),
-            func.sum(models.Venta.total_venta).label("monto"),
-        )
-        .join(models.Producto, models.Producto.id_producto == models.Venta.id_producto)
+async def resumen_ventas_periodo(db: AsyncSession, desde=None, hasta=None):
+    v = models.Venta
+    stmt = select(
+        func.count(v.id_venta),
+        func.coalesce(func.sum(v.cantidad_vendida), 0),
+        func.coalesce(func.sum(v.total_venta), 0.0),
     )
-    if desde:
-        agg = agg.where(models.Venta.fecha_venta >= desde)
-    if hasta:
-        agg = agg.where(models.Venta.fecha_venta <= hasta)
-    agg = agg.group_by(models.Venta.id_producto, models.Producto.nombre).order_by(func.sum(models.Venta.total_venta).desc())
+    if desde is not None:
+        stmt = stmt.where(v.fecha_venta >= desde)
+    if hasta is not None:
+        stmt = stmt.where(v.fecha_venta <= hasta)
 
-    por_producto = [
-        {"id_producto": r.id_producto, "nombre": r.nombre, "unidades": int(r.unidades), "monto": float(round(r.monto, 2))}
-        for r in (await db.execute(agg)).all()
-    ]
-
+    res = await db.execute(stmt)
+    total_ventas, unidades_vendidas, monto_total = res.one()
     return {
-        "total_unidades": int(total_unidades),
-        "total_ventas": float(total_ventas),
-        "ventas_count": len(ventas),
-        "ticket_promedio": float(ticket_prom),
-        "por_producto": por_producto,
+        "total_ventas": int(total_ventas or 0),
+        "unidades_vendidas": int(unidades_vendidas or 0),
+        "monto_total": float(monto_total or 0.0),
     }
+async def rebuild_resumenes_ventas(db: AsyncSession):
+    return True

@@ -1,14 +1,25 @@
 # app/routes/health.py
-import os
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
+from ..database import get_db
 
-router = APIRouter(prefix="/health", tags=["health"])
+router = APIRouter(tags=["health"])
 
-EXPECTED = os.getenv("PROJECT_KEY", "adsfhkdjashgfdjashgkfdjashgfdjashgfdjashg")
-
-@router.get("/header-check")
-async def header_check(request: Request):
-    got = request.headers.get("x-proyecto-key")
-    if got != EXPECTED:
-        raise HTTPException(status_code=401, detail="Header x-proyecto-key inválido o ausente")
+@router.get("/health")
+async def health():
     return {"ok": True}
+
+@router.get("/health/db-check")
+async def db_check(db: AsyncSession = Depends(get_db)):
+    q = text("""
+        select
+          current_database() as db,
+          current_user as usr,
+          inet_server_addr()::text as host,
+          inet_server_port()::int as port,
+          current_setting('search_path') as search_path
+    """)
+    res = await db.execute(q)
+    row = res.mappings().first()
+    return dict(row)
