@@ -277,23 +277,28 @@ async def list_productos_menos_vendidos(db: AsyncSession, limit: int = 10):
 
 # =============== REPORTES EXTRA ===============
 async def resumen_ventas_periodo(db: AsyncSession, desde=None, hasta=None):
-    v = models.Venta
-    stmt = select(
-        func.count(v.id_venta),
-        func.coalesce(func.sum(v.cantidad_vendida), 0),
-        func.coalesce(func.sum(v.total_venta), 0.0),
-    )
-    if desde is not None:
-        stmt = stmt.where(v.fecha_venta >= desde)
-    if hasta is not None:
-        stmt = stmt.where(v.fecha_venta <= hasta)
+        v = models.Venta
+        stmt = select(
+            func.count(v.id_venta).label("n_ventas"),
+            func.coalesce(func.sum(v.cantidad_vendida), 0).label("unidades"),
+            func.coalesce(func.sum(v.total_venta), 0.0).label("monto"),
+        )
+        if desde is not None:
+            stmt = stmt.where(v.fecha_venta >= desde)
+        if hasta is not None:
+            stmt = stmt.where(v.fecha_venta <= hasta)
 
-    res = await db.execute(stmt)
-    total_ventas, unidades_vendidas, monto_total = res.one()
-    return {
-        "total_ventas": int(total_ventas or 0),
-        "unidades_vendidas": int(unidades_vendidas or 0),
-        "monto_total": float(monto_total or 0.0),
-    }
-async def rebuild_resumenes_ventas(db: AsyncSession):
-    return True
+        res = await db.execute(stmt)
+        n_ventas, unidades, monto = res.one()
+
+        total_ventas = int(n_ventas or 0)
+        unidades_vendidas = int(unidades or 0)
+        monto_total = float(monto or 0.0)
+        ticket_promedio = float(monto_total / total_ventas) if total_ventas > 0 else 0.0
+
+        return {
+            "total_ventas": total_ventas,
+            "unidades_vendidas": unidades_vendidas,
+            "monto_total": monto_total,
+            "ticket_promedio": ticket_promedio,
+        }
