@@ -1,7 +1,7 @@
 # app/crud.py
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import select, func, case, or_, delete, text
+from sqlalchemy import select, func, case, or_, delete, text, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from . import models, schemas
@@ -233,72 +233,76 @@ async def rebuild_resumenes_ventas(db: AsyncSession):
     await db.commit()
 
 async def list_productos_mas_vendidos(db: AsyncSession, limit: int = 10):
-    p = models.Producto
-    v = models.Venta
     stmt = (
         select(
-            p.id_producto,
-            p.nombre,
-            func.coalesce(func.sum(v.cantidad_vendida), 0).label("total_vendido"),
+            models.Producto.id_producto,
+            models.Producto.nombre,
+            func.coalesce(func.sum(models.Venta.cantidad_vendida), 0).label("total_vendido"),
+            func.coalesce(func.sum(models.Venta.total_venta), 0.0).label("monto_total"),
         )
-        .join(v, v.id_producto == p.id_producto, isouter=True)
-        .group_by(p.id_producto, p.nombre)
-        .order_by(text("total_vendido DESC"))
+        .join(models.Venta, models.Venta.id_producto == models.Producto.id_producto, isouter=True)
+        .group_by(models.Producto.id_producto)
+        .order_by(desc("total_vendido"))
         .limit(limit)
     )
     res = await db.execute(stmt)
     rows = res.all()
+    # devuélvelo como objetos livianos para Jinja
     return [
-        SimpleNamespace(id_producto=idp, nombre=nom, total_vendido=tot or 0)
-        for (idp, nom, tot) in rows
+        type("PMV", (), dict(id_producto=r.id_producto, nombre=r.nombre,
+                             total_vendido=int(r.total_vendido or 0),
+                             monto_total=float(r.monto_total or 0.0)))
+        for r in rows
     ]
 
 async def list_productos_menos_vendidos(db: AsyncSession, limit: int = 10):
-    p = models.Producto
-    v = models.Venta
     stmt = (
         select(
-            p.id_producto,
-            p.nombre,
-            func.coalesce(func.sum(v.cantidad_vendida), 0).label("total_vendido"),
+            models.Producto.id_producto,
+            models.Producto.nombre,
+            func.coalesce(func.sum(models.Venta.cantidad_vendida), 0).label("total_vendido"),
+            func.coalesce(func.sum(models.Venta.total_venta), 0.0).label("monto_total"),
         )
-        .join(v, v.id_producto == p.id_producto, isouter=True)
-        .group_by(p.id_producto, p.nombre)
-        .order_by(text("total_vendido ASC"))
+        .join(models.Venta, models.Venta.id_producto == models.Producto.id_producto, isouter=True)
+        .group_by(models.Producto.id_producto)
+        .order_by("total_vendido")
         .limit(limit)
     )
     res = await db.execute(stmt)
     rows = res.all()
     return [
-        SimpleNamespace(id_producto=idp, nombre=nom, total_vendido=tot or 0)
-        for (idp, nom, tot) in rows
+        type("PMV", (), dict(id_producto=r.id_producto, nombre=r.nombre,
+                             total_vendido=int(r.total_vendido or 0),
+                             monto_total=float(r.monto_total or 0.0)))
+        for r in rows
     ]
 
 
 # =============== REPORTES EXTRA ===============
-async def resumen_ventas_periodo(db: AsyncSession, desde=None, hasta=None):
-        v = models.Venta
-        stmt = select(
-            func.count(v.id_venta).label("n_ventas"),
-            func.coalesce(func.sum(v.cantidad_vendida), 0).label("unidades"),
-            func.coalesce(func.sum(v.total_venta), 0.0).label("monto"),
-        )
-        if desde is not None:
-            stmt = stmt.where(v.fecha_venta >= desde)
-        if hasta is not None:
-            stmt = stmt.where(v.fecha_venta <= hasta)
+async def resumen_ventas_periodo(
+    db,
+    desde: datetime | None = None,
+    hasta: datetime | None = None,
+) -> dict:
+    stmt = select(
+        func.coalesce(func.sum(models.Venta.cantidad_vendida), 0).label("unidades"),
+        func.coalesce(func.sum(models.Venta.total_venta), 0.0).label("monto"),
+        func.count(models.Venta.id_venta).label("num")
+    )
+    if desde:
+        stmt = stmt.where(models.Venta.fecha_venta >= desde)
+    if hasta:
+        stmt = stmt.where(models.Venta.fecha_venta <= hasta)
 
-        res = await db.execute(stmt)
-        n_ventas, unidades, monto = res.one()
+    row = (await db.execute(stmt)).one()
+    unidades = int(row.unidades or 0)
+    monto = float(row.monto or 0.0)
+    num = int(row.num or 0)
+    ticket = float(monto / num) if num > 0 else 0.0
 
-        total_ventas = int(n_ventas or 0)
-        unidades_vendidas = int(unidades or 0)
-        monto_total = float(monto or 0.0)
-        ticket_promedio = float(monto_total / total_ventas) if total_ventas > 0 else 0.0
-
-        return {
-            "total_ventas": total_ventas,
-            "unidades_vendidas": unidades_vendidas,
-            "monto_total": monto_total,
-            "ticket_promedio": ticket_promedio,
-        }
+    return {
+        "unidades_vendidas": unidades,
+        "monto_total": monto,
+        "ticket_promedio": ticket,
+        "num_ventas": num,
+    }

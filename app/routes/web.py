@@ -1,12 +1,11 @@
 # app/routes/web.py
 import logging
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from starlette import status
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.templating import Jinja2Templates
 
@@ -17,30 +16,12 @@ from ..services.supabase_storage import upload_image_get_public_url
 logger = logging.getLogger("inventariobar")
 
 router = APIRouter(tags=["web"])
-
-# Directorio de templates (funciona igual local y en Render)
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-# Evita 'now is undefined' en Jinja:
 templates.env.globals["now"] = lambda: datetime.now(timezone.utc)
 
 
-# --------- Utilidades ---------
-async def _try_upload(file: Optional[UploadFile], folder: str) -> Optional[str]:
-    """
-    Intenta subir a Supabase y devolver URL pública.
-    Si faltan variables de entorno o falla cualquier cosa, devuelve None y loggea el warning.
-    """
-    if not file or not getattr(file, "filename", None):
-        return None
-    try:
-        return await upload_image_get_public_url(file, folder=folder)
-    except Exception as e:
-        logger.warning("No se pudo subir a Supabase (%s): %s", folder, e)
-        return None
-
-
+# ---------- helpers ----------
 def _parse_date(s: Optional[str]) -> Optional[datetime]:
     if not s:
         return None
@@ -49,6 +30,12 @@ def _parse_date(s: Optional[str]) -> Optional[datetime]:
         return datetime.strptime(s, "%Y-%m-%d")
     except Exception:
         return None
+
+def _parse_int(s: Optional[str]) -> Optional[int]:
+    if s is None:
+        return None
+    s = s.strip()
+    return int(s) if s.isdigit() else None
 
 
 # ---------- HOME ----------
@@ -64,25 +51,15 @@ async def pagina_productos(
     db: AsyncSession = Depends(get_db),
     q: Optional[str] = None,
     page: int = 1,
-    msg: Optional[str] = None,
 ):
     page = max(page, 1)
     limit = 50
     offset = (page - 1) * limit
-
     productos = await crud.search_productos(db, q=q, limit=limit, offset=offset)
-
     return templates.TemplateResponse(
         "web/productos.html",
-        {
-            "request": request,
-            "productos": productos,
-            "q": q or "",
-            "page": page,
-            "msg": msg,
-        },
+        {"request": request, "productos": productos, "q": q or "", "page": page},
     )
-
 
 @router.post("/web/productos")
 async def crear_producto_html(
@@ -93,9 +70,11 @@ async def crear_producto_html(
     marca: str = Form(...),
     cantidad: int = Form(...),
     precio_venta: float = Form(...),
-    imagen: Optional[UploadFile] = File(default=None),
+    imagen: UploadFile | None = File(default=None),
 ):
-    imagen_url = await _try_upload(imagen, folder="productos")
+    imagen_url: str | None = None
+    if imagen and imagen.filename:
+        imagen_url = await upload_image_get_public_url(imagen, folder="productos")
 
     data = schemas.ProductoCreate(
         nombre=nombre,
@@ -105,42 +84,24 @@ async def crear_producto_html(
         precio_venta=precio_venta,
         imagen_url=imagen_url,
     )
-
     await crud.create_producto(db, data)
     logger.info("Producto creado: %s", nombre)
-    return RedirectResponse(
-        url="/web/productos?msg=Producto%20creado",
-        status_code=status.HTTP_302_FOUND,
-    )
-
+    return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
 
 @router.post("/web/productos/{id_producto}/delete")
-async def eliminar_producto_html(
-    id_producto: int,
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        await crud.delete_producto(db, id_producto)
-        url = "/web/productos?msg=Producto%20eliminado"
-    except Exception as e:
-        logger.exception("Error al eliminar producto %s: %s", id_producto, e)
-        url = f"/web/productos?msg=Error%20al%20eliminar:%20{str(e).replace(' ', '%20')}"
-    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
+async def eliminar_producto_html(id_producto: int, db: AsyncSession = Depends(get_db)):
+    await crud.delete_producto(db, id_producto)
+    return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
 
 
 # ---------- USUARIOS ----------
 @router.get("/web/usuarios", response_class=HTMLResponse)
-async def pagina_usuarios(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    msg: Optional[str] = None,
-):
+async def pagina_usuarios(request: Request, db: AsyncSession = Depends(get_db)):
     usuarios = await crud.list_usuarios(db)
     return templates.TemplateResponse(
         "web/usuarios.html",
-        {"request": request, "usuarios": usuarios, "msg": msg},
+        {"request": request, "usuarios": usuarios},
     )
-
 
 @router.post("/web/usuarios")
 async def crear_usuario_html(
@@ -149,9 +110,11 @@ async def crear_usuario_html(
     nombre_usuario: str = Form(...),
     correo: str = Form(...),
     rol: str = Form(...),
-    foto: Optional[UploadFile] = File(default=None),
+    foto: UploadFile | None = File(default=None),
 ):
-    foto_url = await _try_upload(foto, folder="usuarios")
+    foto_url: str | None = None
+    if foto and foto.filename:
+        foto_url = await upload_image_get_public_url(foto, folder="usuarios")
 
     data = schemas.UsuarioCreate(
         nombre_usuario=nombre_usuario,
@@ -161,22 +124,12 @@ async def crear_usuario_html(
     )
     await crud.create_usuario(db, data)
     logger.info("Usuario creado: %s", nombre_usuario)
-    return RedirectResponse(
-        url="/web/usuarios?msg=Usuario%20creado",
-        status_code=status.HTTP_302_FOUND,
-    )
-
+    return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
 
 @router.post("/web/usuarios/{id_usuario}/delete")
 async def eliminar_usuario_html(id_usuario: int, db: AsyncSession = Depends(get_db)):
-    try:
-        await crud.delete_usuario(db, id_usuario)
-        url = "/web/usuarios?msg=Usuario%20eliminado"
-    except Exception as e:
-        # Si hay ventas que referencian al usuario y la FK no es CASCADE, se informará aquí.
-        logger.exception("Error al eliminar usuario %s: %s", id_usuario, e)
-        url = f"/web/usuarios?msg=Error%20al%20eliminar:%20{str(e).replace(' ', '%20')}"
-    return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
+    await crud.delete_usuario(db, id_usuario)
+    return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
 
 
 # ---------- VENTAS ----------
@@ -186,12 +139,18 @@ async def pagina_ventas(
     db: AsyncSession = Depends(get_db),
     desde: Optional[str] = None,
     hasta: Optional[str] = None,
-    producto_id: Optional[int] = None,
-    usuario_id: Optional[int] = None,
+    producto_id: Optional[str] = None,  # <- str para tolerar vacío
+    usuario_id: Optional[str] = None,   # <- str para tolerar vacío
     msg: Optional[str] = None,
 ):
     dt_desde = _parse_date(desde)
     dt_hasta = _parse_date(hasta)
+    # incluir el día 'hasta' completo si se envió
+    if dt_hasta:
+        dt_hasta = dt_hasta + timedelta(days=1) - timedelta(microseconds=1)
+
+    prod_id = _parse_int(producto_id)
+    user_id = _parse_int(usuario_id)
 
     # Datos para selects del formulario
     productos = await crud.list_productos(db)
@@ -202,8 +161,8 @@ async def pagina_ventas(
         db,
         desde=dt_desde,
         hasta=dt_hasta,
-        producto_id=producto_id,
-        usuario_id=usuario_id,
+        producto_id=prod_id,
+        usuario_id=user_id,
     )
 
     # Diccionarios para mostrar nombres
@@ -224,13 +183,12 @@ async def pagina_ventas(
             "map_user": map_user,
             "desde": desde or "",
             "hasta": hasta or "",
-            "producto_id": producto_id,
-            "usuario_id": usuario_id,
+            "producto_id": prod_id,
+            "usuario_id": user_id,
             "msg": msg,
             "resumen": resumen,
         },
     )
-
 
 @router.post("/web/ventas")
 async def crear_venta_html(
@@ -251,15 +209,11 @@ async def crear_venta_html(
         )
         url = "/web/ventas?msg=Venta%20registrada"
     except ValueError as e:
-        # Mensajes de negocio: "Producto no existe", "Stock insuficiente", etc.
         url = f"/web/ventas?msg={str(e).replace(' ', '%20')}"
-    except Exception as e:
-        logger.exception("Error al crear venta: %s", e)
-        url = "/web/ventas?msg=Error%20al%20crear%20venta"
     return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
 
 
-# ---------- DASHBOARD (Top/Menos vendidos + resumen) ----------
+# ---------- DASHBOARD ----------
 @router.get("/web/dashboard", response_class=HTMLResponse)
 async def pagina_dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     top = await crud.list_productos_mas_vendidos(db, limit=10)
@@ -269,7 +223,6 @@ async def pagina_dashboard(request: Request, db: AsyncSession = Depends(get_db))
         "web/dashboard.html",
         {"request": request, "top": top, "bottom": bottom, "resumen": resumen},
     )
-
 
 @router.post("/web/dashboard/rebuild")
 async def rebuild_dashboard(db: AsyncSession = Depends(get_db)):
