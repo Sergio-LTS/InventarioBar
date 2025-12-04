@@ -1,33 +1,39 @@
-# app/services/storage_supabase.py
-import os
-import uuid
-from supabase import create_client, Client
+# app/services/supabase_storage.py
+import os, uuid
+from typing import Optional
 from fastapi import UploadFile
+from supabase import create_client, Client
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_ROLE = os.getenv("SUPABASE_SERVICE_ROLE")
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "inventario")
+def _client() -> Optional[Client]:
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE") or os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+    if not url or not key:
+        return None  # ← sin credenciales: no romper
+    return create_client(url, key)
 
-def _client() -> Client:
-    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE:
-        raise RuntimeError("Faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE en variables de entorno")
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
+BUCKET = os.getenv("SUPABASE_BUCKET", "inventariobar")
 
-async def upload_image_get_public_url(file: UploadFile, folder: str = "productos") -> str | None:
-    """
-    Sube el archivo al bucket público y devuelve la URL pública (o None si no hay archivo).
-    """
-    if not file or not file.filename:
+async def upload_image_get_public_url(file: Optional[UploadFile], folder: str = "uploads") -> Optional[str]:
+    # Sin archivo → nada que subir
+    if file is None or not getattr(file, "filename", ""):
         return None
 
-    ext = (file.filename.split(".")[-1] or "jpg").lower()
-    filename = f"{uuid.uuid4()}.{ext}"
-    path_in_bucket = f"{folder}/{filename}"
-
     sb = _client()
-    data = await file.read()  # lee bytes del UploadFile
-    # sube con upsert=True para no fallar si el nombre ya existiera (muy improbable con uuid)
-    res = sb.storage.from_(SUPABASE_BUCKET).upload(path_in_bucket, data, {"upsert": True})
-    # obtener URL pública
-    pub = sb.storage.from_(SUPABASE_BUCKET).get_public_url(path_in_bucket)
-    return pub
+    # Sin cliente (faltan envs) → no subir, pero no romper
+    if sb is None:
+        return None
+
+    # Leer bytes
+    data = await file.read()
+    ext = (file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg").lower()
+    path = f"{folder}/{uuid.uuid4()}.{ext}"
+
+    # Subir
+    r = sb.storage.from_(BUCKET).upload(path, data)
+    if getattr(r, "error", None):
+        # Fallo de Storage → no romper el flujo de negocio
+        return None
+
+    # URL pública
+    public = sb.storage.from_(BUCKET).get_public_url(path)
+    return getattr(public, "get", lambda _k, _d=None: None)("publicUrl", None) if hasattr(public, "get") else public
