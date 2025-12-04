@@ -279,34 +279,34 @@ async def list_productos_menos_vendidos(db: AsyncSession, limit: int = 10):
 
 
 # =============== REPORTES EXTRA ===============
-async def resumen_ventas_periodo(
-    db,
-    desde: datetime | None = None,
-    hasta: datetime | None = None,
-) -> dict:
-    V = models.Venta
-
+async def resumen_ventas_periodo(db, desde: datetime | None = None, hasta: datetime | None = None) -> dict:
+    """
+    Resume las ventas en el rango [desde, hasta]:
+      - unidades_vendidas: SUM(cantidad_vendida)
+      - total_ventas:      SUM(total_venta)
+      - ticket_promedio:   total_ventas / unidades_vendidas
+    Devuelve también alias 'monto_total' y 'unidades' para compatibilidad con templates antiguos.
+    """
+    v = models.Venta
     stmt = select(
-        func.coalesce(func.sum(V.cantidad_vendida), 0).label("unidades_vendidas"),
-        func.coalesce(func.sum(V.total_venta), 0.0).label("monto_total"),
-        func.count(V.id_venta).label("num_ventas"),
+        func.coalesce(func.sum(v.cantidad_vendida), 0).label("unidades_vendidas"),
+        func.coalesce(func.sum(v.total_venta), 0.0).label("total_ventas"),
     )
     if desde:
-        stmt = stmt.where(V.fecha_venta >= desde)
+        stmt = stmt.where(v.fecha_venta >= desde)
     if hasta:
-        stmt = stmt.where(V.fecha_venta <= hasta)
+        stmt = stmt.where(v.fecha_venta <= hasta)
 
-    row = (await db.execute(stmt)).one()
+    res = await db.execute(stmt)
+    row = res.one()  # returns a Row with the two labels above
+
     unidades = int(row.unidades_vendidas or 0)
-    monto = float(row.monto_total or 0.0)
-    num = int(row.num_ventas or 0)
-    ticket = float(monto / num) if num > 0 else 0.0
+    total = float(row.total_ventas or 0)
 
-    # Devolvemos alias para compatibilidad con templates viejos
     return {
         "unidades_vendidas": unidades,
-        "monto_total": monto,
-        "ticket_promedio": ticket,
-        "num_ventas": num,
-        "total_ventas": monto,  # alias = monto_total
+        "unidades": unidades,            # alias
+        "total_ventas": total,
+        "monto_total": total,            # alias
+        "ticket_promedio": float(total / unidades) if unidades else 0.0,
     }

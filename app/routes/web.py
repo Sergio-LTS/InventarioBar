@@ -20,17 +20,14 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 templates.env.globals["now"] = lambda: datetime.now(timezone.utc)
 
-
 # ---------- helpers ----------
 def _parse_date(s: Optional[str]) -> Optional[datetime]:
     if not s:
         return None
     try:
-        # input type="date" -> 'YYYY-MM-DD'
         return datetime.strptime(s, "%Y-%m-%d")
     except Exception:
         return None
-
 
 def _parse_int(s: Optional[str]) -> Optional[int]:
     if s is None:
@@ -38,14 +35,16 @@ def _parse_int(s: Optional[str]) -> Optional[int]:
     s = s.strip()
     return int(s) if s.isdigit() else None
 
-
 def _normalize_resumen(res: Optional[dict]) -> dict:
     """
-    Normaliza las claves esperadas por los templates:
-    - unidades_vendidas (int)
-    - total_ventas (float)
-    - ticket_promedio (float)
-    Acepta posibles nombres alternos que pueda retornar el CRUD.
+    Normaliza claves que esperan los templates y agrega alias para retrocompatibilidad.
+    Siempre devuelve:
+      - unidades_vendidas (int)
+      - total_ventas (float)
+      - ticket_promedio (float)
+    Y además alias:
+      - monto_total (float)  -> igual a total_ventas
+      - unidades (int)       -> igual a unidades_vendidas
     """
     res = res or {}
     unidades = (
@@ -73,18 +72,20 @@ def _normalize_resumen(res: Optional[dict]) -> dict:
     if ticket is None:
         ticket = (total / unidades) if unidades else 0.0
 
-    return {
+    # payload final + alias para plantillas antiguas
+    payload = {
         "unidades_vendidas": unidades,
         "total_ventas": total,
         "ticket_promedio": float(ticket or 0),
     }
-
+    payload["monto_total"] = payload["total_ventas"]    # alias
+    payload["unidades"] = payload["unidades_vendidas"]  # alias
+    return payload
 
 # ---------- HOME ----------
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("web/home.html", {"request": request})
-
 
 # ---------- PRODUCTOS ----------
 @router.get("/web/productos", response_class=HTMLResponse)
@@ -102,7 +103,6 @@ async def pagina_productos(
         "web/productos.html",
         {"request": request, "productos": productos, "q": q or "", "page": page},
     )
-
 
 @router.post("/web/productos")
 async def crear_producto_html(
@@ -131,12 +131,10 @@ async def crear_producto_html(
     logger.info("Producto creado: %s", nombre)
     return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
 
-
 @router.post("/web/productos/{id_producto}/delete")
 async def eliminar_producto_html(id_producto: int, db: AsyncSession = Depends(get_db)):
     await crud.delete_producto(db, id_producto)
     return RedirectResponse(url="/web/productos", status_code=status.HTTP_302_FOUND)
-
 
 # ---------- USUARIOS ----------
 @router.get("/web/usuarios", response_class=HTMLResponse)
@@ -146,7 +144,6 @@ async def pagina_usuarios(request: Request, db: AsyncSession = Depends(get_db)):
         "web/usuarios.html",
         {"request": request, "usuarios": usuarios},
     )
-
 
 @router.post("/web/usuarios")
 async def crear_usuario_html(
@@ -171,12 +168,10 @@ async def crear_usuario_html(
     logger.info("Usuario creado: %s", nombre_usuario)
     return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
 
-
 @router.post("/web/usuarios/{id_usuario}/delete")
 async def eliminar_usuario_html(id_usuario: int, db: AsyncSession = Depends(get_db)):
     await crud.delete_usuario(db, id_usuario)
     return RedirectResponse(url="/web/usuarios", status_code=status.HTTP_302_FOUND)
-
 
 # ---------- VENTAS ----------
 @router.get("/web/ventas", response_class=HTMLResponse)
@@ -191,7 +186,6 @@ async def pagina_ventas(
 ):
     dt_desde = _parse_date(desde)
     dt_hasta = _parse_date(hasta)
-    # incluir el día 'hasta' completo si se envió
     if dt_hasta:
         dt_hasta = dt_hasta + timedelta(days=1) - timedelta(microseconds=1)
 
@@ -233,7 +227,6 @@ async def pagina_ventas(
         },
     )
 
-
 @router.post("/web/ventas")
 async def crear_venta_html(
     request: Request,
@@ -256,7 +249,6 @@ async def crear_venta_html(
         url = f"/web/ventas?msg={str(e).replace(' ', '%20')}"
     return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
 
-
 # ---------- DASHBOARD ----------
 @router.get("/web/dashboard", response_class=HTMLResponse)
 async def pagina_dashboard(request: Request, db: AsyncSession = Depends(get_db)):
@@ -268,7 +260,6 @@ async def pagina_dashboard(request: Request, db: AsyncSession = Depends(get_db))
         "web/dashboard.html",
         {"request": request, "top": top, "bottom": bottom, "resumen": resumen},
     )
-
 
 @router.post("/web/dashboard/rebuild")
 async def rebuild_dashboard(db: AsyncSession = Depends(get_db)):
