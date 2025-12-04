@@ -1,8 +1,8 @@
 # app/routes/web.py
 import logging
 from typing import Optional
-from datetime import datetime
-
+from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette import status
@@ -16,8 +16,9 @@ from ..services.supabase_storage import upload_image_get_public_url
 logger = logging.getLogger("inventariobar")
 
 router = APIRouter(tags=["web"])
-templates = Jinja2Templates(directory="app/templates")
-templates.env.globals["now"] = lambda: datetime.now()
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.globals["now"] = lambda: datetime.now(timezone.utc)
 
 # ---------- HOME ----------
 @router.get("/", response_class=HTMLResponse)

@@ -1,43 +1,47 @@
 # app/database.py
 import os
+import logging
+from urllib.parse import urlparse, urlunparse
+
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
-raw_url = os.getenv("DATABASE_URL")
-if not raw_url:
+logger = logging.getLogger("db")
+
+raw = os.getenv("DATABASE_URL")
+if not raw:
     raise RuntimeError("DATABASE_URL missing")
 
-def normalize_db_url(url: str) -> str:
-    # 1) Forzar driver asyncpg si viene 'postgres://'
-    if url.startswith("postgres://"):
-        url = "postgresql+asyncpg://" + url[len("postgres://"):]
+# Forzar driver asyncpg
+if raw.startswith("postgres://"):
+    raw = "postgresql+asyncpg://" + raw[len("postgres://"):]
+if raw.startswith("postgresql://") and "+asyncpg" not in raw:
+    raw = raw.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    # 2) Si ya es asyncpg, garantizar SSL compatible
-    if "+asyncpg" in url:
-        # Reemplazar sslmode=... por ssl=true (asyncpg NO usa sslmode)
-        if "sslmode=" in url:
-            url = url.replace("sslmode=require", "ssl=true") \
-                     .replace("sslmode=verify-full", "ssl=true") \
-                     .replace("sslmode=prefer", "ssl=true") \
-                     .replace("sslmode=allow", "ssl=true") \
-                     .replace("sslmode=disable", "ssl=true")
-        # Si no hay parámetro ssl, añadirlo
-        if "ssl=true" not in url and "ssl=" not in url:
-            url += ("&" if "?" in url else "?") + "ssl=true"
+# Quitar por completo los parámetros (?...).
+p = urlparse(raw)
+clean_url = urlunparse(p._replace(query=""))
 
-    return url
+def _mask(u: str) -> str:
+    up = urlparse(u)
+    host = up.hostname or "?"
+    db = (up.path or "/").lstrip("/")
+    return f"postgresql+asyncpg://***:***@{host}/{db}"
 
-DATABASE_URL = normalize_db_url(raw_url)
+logger.info("database.py cargado: %s", __file__)
+logger.info("DB URL (sanitized, sin query): %s", _mask(clean_url))
 
 engine = create_async_engine(
-    DATABASE_URL,
+    clean_url,
     future=True,
     echo=False,
     pool_size=5,
     max_overflow=5,
+    connect_args={"ssl": True},  # <-- TLS forzado aquí, no en la URL
 )
+
 AsyncSessionLocal = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 
